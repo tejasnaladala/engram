@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Engram - Brain-Inspired AI Demo</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: #0a0a0f;
+      color: #e0e0ff;
+      font-family: 'Inter', 'SF Pro', -apple-system, system-ui, sans-serif;
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      overflow: hidden;
+    }
+    header {
+      padding: 12px 20px;
+      background: #12121a;
+      border-bottom: 1px solid rgba(255,255,255,0.05);
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+    header h1 { font-size: 18px; font-weight: 700; letter-spacing: 2px; color: #00ffaa; }
+    header .subtitle { font-size: 12px; color: #8888aa; }
+    .main {
+      flex: 1;
+      display: grid;
+      grid-template-columns: 1fr 300px;
+      gap: 8px;
+      padding: 8px;
+      min-height: 0;
+    }
+    .grid-panel {
+      background: #12121a;
+      border: 1px solid rgba(255,255,255,0.05);
+      border-radius: 8px;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    .panel-header {
+      padding: 8px 12px;
+      font-size: 10px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      color: #8888aa;
+      border-bottom: 1px solid rgba(255,255,255,0.05);
+    }
+    .grid-container {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 12px;
+    }
+    #grid-canvas { cursor: crosshair; border-radius: 4px; }
+    .sidebar { display: flex; flex-direction: column; gap: 8px; }
+    .controls { display: flex; flex-wrap: wrap; gap: 6px; padding: 12px; }
+    button {
+      background: #1a1a2e;
+      color: #e0e0ff;
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 6px;
+      padding: 6px 12px;
+      font-size: 11px;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    button:hover { background: #2a2a4e; border-color: rgba(255,255,255,0.2); }
+    button.active { background: #00ffaa22; border-color: #00ffaa; color: #00ffaa; }
+    .metrics { padding: 12px; display: flex; flex-direction: column; gap: 8px; }
+    .metric { display: flex; justify-content: space-between; font-size: 11px; }
+    .metric-label { color: #8888aa; }
+    .metric-value { font-family: monospace; }
+    .module-bars { padding: 12px; display: flex; flex-direction: column; gap: 6px; }
+    .module-bar { display: flex; align-items: center; gap: 8px; }
+    .module-name { font-size: 9px; width: 60px; text-align: right; }
+    .bar-track { flex: 1; height: 6px; background: #1a1a2e; border-radius: 3px; overflow: hidden; }
+    .bar-fill { height: 100%; border-radius: 3px; transition: width 0.15s; }
+    #spike-canvas { width: 100%; border-radius: 4px; }
+    .speed-control { padding: 8px 12px; display: flex; align-items: center; gap: 8px; font-size: 11px; }
+    .speed-control input { flex: 1; accent-color: #00ffaa; }
+    .speed-control label { color: #8888aa; }
+  </style>
+</head>
+<body>
+  <header>
+    <span style="font-size: 24px">🧠</span>
+    <h1>ENGRAM</h1>
+    <span class="subtitle">Brain-Inspired Adaptive Intelligence - Interactive Demo</span>
+    <div style="flex:1"></div>
+    <span class="subtitle" id="status">Loading WASM...</span>
+  </header>
+
+  <div class="main">
+    <div class="grid-panel">
+      <div class="panel-header">Grid World - Click to place objects</div>
+      <div class="grid-container">
+        <canvas id="grid-canvas" width="480" height="480"></canvas>
+      </div>
+    </div>
+
+    <div class="sidebar">
+      <div class="grid-panel">
+        <div class="panel-header">Tools</div>
+        <div class="controls">
+          <button id="tool-wall" class="active" data-tool="1">Wall</button>
+          <button id="tool-reward" data-tool="2">Reward</button>
+          <button id="tool-hazard" data-tool="3">Hazard</button>
+          <button id="tool-erase" data-tool="0">Erase</button>
+        </div>
+        <div class="controls">
+          <button id="reset-btn">Reset</button>
+          <button id="pause-btn">Pause</button>
+        </div>
+        <div class="speed-control">
+          <label>Speed:</label>
+          <input type="range" min="1" max="50" value="10" id="speed-slider">
+          <span id="speed-label">10x</span>
+        </div>
+      </div>
+
+      <div class="grid-panel">
+        <div class="panel-header">Metrics</div>
+        <div class="metrics">
+          <div class="metric"><span class="metric-label">Tick</span><span class="metric-value" id="m-tick">0</span></div>
+          <div class="metric"><span class="metric-label">Total Reward</span><span class="metric-value" id="m-reward" style="color:#22c55e">0.00</span></div>
+          <div class="metric"><span class="metric-label">Pred. Error</span><span class="metric-value" id="m-error" style="color:#ff8c00">0.000</span></div>
+          <div class="metric"><span class="metric-label">Action</span><span class="metric-value" id="m-action" style="color:#00d4ff">-</span></div>
+        </div>
+      </div>
+
+      <div class="grid-panel">
+        <div class="panel-header">Module Activity</div>
+        <div class="module-bars" id="module-bars"></div>
+      </div>
+
+      <div class="grid-panel" style="flex:1">
+        <div class="panel-header">Neural Activity</div>
+        <div style="padding: 8px; flex:1; display:flex; align-items:center; justify-content:center;">
+          <canvas id="spike-canvas" width="276" height="120"></canvas>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="src/main.ts"></script>
+</body>
+</html>

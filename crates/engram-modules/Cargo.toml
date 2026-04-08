@@ -1,0 +1,13 @@
+[package]
+name = "engram-modules"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Brain region modules for the Engram cognitive runtime"
+
+[dependencies]
+engram-core = { path = "../engram-core" }
+serde = { workspace = true }
+rmp-serde = { workspace = true }
+rand = { workspace = true }
+rand_chacha = { workspace = true }

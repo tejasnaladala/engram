@@ -1,0 +1,13 @@
+target/
+node_modules/
+dist/
+.venv/
+__pycache__/
+*.pyc
+*.pyd
+*.so
+*.egg-info/
+.vite/
+pkg/
+*.wasm
+.playwright-mcp/

@@ -1,0 +1,23 @@
+[package]
+name = "engram-wasm"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "WebAssembly build of the Engram cognitive runtime"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[package.metadata.wasm-pack.profile.release]
+wasm-opt = false
+
+[dependencies]
+engram-core = { path = "../engram-core" }
+engram-modules = { path = "../engram-modules" }
+wasm-bindgen = { workspace = true }
+js-sys = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+rand = { workspace = true }
+rand_chacha = { workspace = true }
+getrandom = { workspace = true }
