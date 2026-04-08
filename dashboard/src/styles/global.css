@@ -1,181 +1,235 @@
 @import "tailwindcss";
 
-/* ============================================================
-   ENGRAM NEURO-CLINICAL INTERFACE SYSTEM v2
-   Visual language: neuronavigation workstation meets
-   volumetric brain scanner meets holographic operating theater
-   ============================================================ */
+/* ═══════════════════════════════════════════════════════════
+   ENGRAM — SIGNAL FLOW INTERFACE SYSTEM
+   Visual narrative: input → processing → memory → action → safety
+   Design: unified terminal × engineering dashboard × living machine
+   ═══════════════════════════════════════════════════════════ */
 
-@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600&family=Inter:wght@300;400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600&display=swap');
 
 :root {
-  --void: #020205;
-  --surface-0: #050508;
-  --surface-1: #080a10;
-  --surface-2: #0c0e16;
-  --surface-3: #10131c;
-  --surface-4: #161a26;
+  /* ── VOID HIERARCHY ── */
+  --void: #020204;
+  --s0: #060810;
+  --s1: #0a0d16;
+  --s2: #0e111c;
+  --s3: #131722;
+  --s4: #181d2a;
+  --s5: #1e2434;
 
-  --border-ghost: rgba(80, 120, 180, 0.04);
-  --border-dim: rgba(80, 120, 180, 0.07);
-  --border-subtle: rgba(80, 120, 180, 0.12);
-  --border-med: rgba(80, 120, 180, 0.18);
-  --border-bright: rgba(80, 200, 240, 0.25);
+  /* ── SIGNAL COLORS — each has a clear meaning ── */
+  --cyan: #38d8e8;         /* primary accent / system alive */
+  --cyan-20: rgba(56,216,232,0.20);
+  --cyan-10: rgba(56,216,232,0.10);
+  --cyan-05: rgba(56,216,232,0.05);
+  --cyan-glow: 0 0 16px rgba(56,216,232,0.15);
 
-  --text-max: #dce0f0;
-  --text-pri: #a8b0c8;
-  --text-sec: #6878a0;
-  --text-dim: #3c4868;
-  --text-ghost: #2a3450;
+  /* Module palette — mapped to signal flow role */
+  --c-input: #38d8e8;     /* sensory input = cyan */
+  --c-process: #8870f0;   /* association/processing = violet */
+  --c-predict: #f09030;   /* prediction = amber */
+  --c-memory: #40c8d8;    /* memory = teal */
+  --c-output: #40c060;    /* motor output = green */
+  --c-guard: #e04848;     /* safety = red */
 
-  --cyan: #40e8f0;
-  --cyan-dim: rgba(64, 232, 240, 0.08);
-  --cyan-med: rgba(64, 232, 240, 0.15);
-  --cyan-glow: 0 0 20px rgba(64, 232, 240, 0.12), 0 0 60px rgba(64, 232, 240, 0.04);
+  /* ── TEXT ── */
+  --t-max: #d8dce8;
+  --t-pri: #a0a8c0;
+  --t-sec: #606880;
+  --t-dim: #383f58;
+  --t-ghost: #262c40;
 
-  --mod-s1: #40e8f0;
-  --mod-asc: #9070ff;
-  --mod-pe: #f09030;
-  --mod-hpc: #50d0e0;
-  --mod-m1: #40c060;
-  --mod-bst: #e04040;
+  /* ── BORDERS ── */
+  --b-ghost: rgba(80,120,200,0.04);
+  --b-dim: rgba(80,120,200,0.07);
+  --b-sub: rgba(80,120,200,0.11);
+  --b-med: rgba(80,120,200,0.16);
+  --b-hi: rgba(56,216,232,0.20);
 
-  --font-mono: 'JetBrains Mono', 'SF Mono', monospace;
-  --font-sans: 'Inter', -apple-system, system-ui, sans-serif;
-
-  --panel-r: 2px;
-  --gap: 1px;
+  /* ── FONTS ── */
+  --mono: 'JetBrains Mono', 'SF Mono', 'Cascadia Code', monospace;
+  --sans: 'Inter', -apple-system, system-ui, sans-serif;
 }
 
-* { margin: 0; padding: 0; box-sizing: border-box; }
+* { margin:0; padding:0; box-sizing:border-box; }
 
 body {
   background: var(--void);
-  color: var(--text-pri);
-  font-family: var(--font-sans);
+  color: var(--t-pri);
+  font-family: var(--sans);
   font-size: 11px;
   overflow: hidden;
   height: 100vh;
   -webkit-font-smoothing: antialiased;
 }
 
-#root { height: 100vh; }
+#root { height: 100vh; display: flex; flex-direction: column; }
 
 ::-webkit-scrollbar { width: 3px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: var(--border-dim); border-radius: 1px; }
+::-webkit-scrollbar-thumb { background: var(--b-sub); border-radius: 1px; }
 
-/* ── SCAN PANEL ── */
-.scan-panel {
-  background: var(--surface-1);
-  border: 1px solid var(--border-dim);
-  border-radius: var(--panel-r);
+/* ═══ PANEL SYSTEM ═══
+   Every panel is a "station" in the signal-flow pipeline.
+   Consistent framing creates unity. */
+
+.panel {
+  background: var(--s1);
+  border: 1px solid var(--b-dim);
+  border-radius: 3px;
   overflow: hidden;
   display: flex;
   flex-direction: column;
   position: relative;
+  transition: border-color 0.3s ease;
 }
 
-/* Top edge glow — scan acquisition indicator */
-.scan-panel::before {
+/* Active panel — currently receiving data flow */
+.panel:hover {
+  border-color: var(--b-sub);
+}
+
+/* Panel top-edge signal line — shows data is flowing */
+.panel::before {
   content: '';
   position: absolute;
   top: 0; left: 0; right: 0;
   height: 1px;
-  background: linear-gradient(90deg,
-    transparent 0%,
-    var(--border-subtle) 15%,
-    var(--cyan-dim) 50%,
-    var(--border-subtle) 85%,
-    transparent 100%
-  );
+  background: linear-gradient(90deg, transparent, var(--b-sub) 30%, var(--cyan-10) 50%, var(--b-sub) 70%, transparent);
   z-index: 2;
 }
 
-/* Corner registration marks */
-.scan-panel::after {
-  content: '';
-  position: absolute;
-  top: 3px; left: 3px;
-  width: 10px; height: 10px;
-  border-top: 1px solid var(--border-subtle);
-  border-left: 1px solid var(--border-subtle);
-  z-index: 2;
-  pointer-events: none;
-}
+/* ═══ PANEL HEADER ═══
+   Compact, monospaced, clinical. Shows panel role in the pipeline. */
 
-.scan-panel--br::after {
-  top: auto; left: auto;
-  bottom: 3px; right: 3px;
-  border-top: none; border-left: none;
-  border-bottom: 1px solid var(--border-subtle);
-  border-right: 1px solid var(--border-subtle);
-}
-
-/* ── PANEL HEADER ── */
-.panel-hdr {
+.phdr {
   height: 22px;
   display: flex;
   align-items: center;
   padding: 0 8px;
   gap: 6px;
-  border-bottom: 1px solid var(--border-ghost);
+  border-bottom: 1px solid var(--b-ghost);
   flex-shrink: 0;
   position: relative;
-  z-index: 1;
 }
 
-.panel-hdr__dot {
+.phdr-dot {
   width: 4px; height: 4px;
   border-radius: 50%;
   flex-shrink: 0;
 }
 
-.panel-hdr__title {
-  font-family: var(--font-mono);
+.phdr-title {
+  font-family: var(--mono);
   font-size: 8px;
   font-weight: 500;
-  letter-spacing: 1.8px;
+  letter-spacing: 1.5px;
   text-transform: uppercase;
-  color: var(--text-sec);
+  color: var(--t-sec);
 }
 
-.panel-hdr__tag {
-  font-family: var(--font-mono);
+.phdr-tag {
+  font-family: var(--mono);
   font-size: 7px;
   letter-spacing: 0.5px;
   margin-left: auto;
-  padding: 1px 4px;
-  border-radius: 1px;
-  background: var(--cyan-dim);
+  padding: 1px 5px;
+  border-radius: 2px;
+  background: var(--cyan-05);
   color: var(--cyan);
+  border: 1px solid var(--cyan-10);
 }
 
-/* ── SCANLINE ANIMATION ── */
-@keyframes scanline {
-  0% { top: -2px; opacity: 0; }
-  10% { opacity: 0.6; }
-  90% { opacity: 0.6; }
-  100% { top: 100%; opacity: 0; }
-}
+/* ═══ FLOW CONNECTORS ═══
+   Visual lines that connect panels, showing signal direction */
 
-@keyframes pulse { 0%,100%{opacity:0.4}50%{opacity:1} }
-@keyframes breathe { 0%,100%{opacity:0.6}50%{opacity:0.9} }
-
-@keyframes veto-flash {
-  0% { background: rgba(224, 64, 64, 0.15); }
-  100% { background: transparent; }
-}
-
-/* ── GRID OVERLAY — subtle calibration pattern ── */
-.grid-overlay {
+.flow-arrow {
   position: absolute;
+  background: var(--cyan);
+  opacity: 0.08;
+  z-index: 0;
+}
+.flow-arrow--h { height: 1px; }
+.flow-arrow--v { width: 1px; }
+
+/* Animated signal pulse traveling along connectors */
+@keyframes signal-pulse {
+  0% { transform: translateX(-100%); opacity: 0; }
+  20% { opacity: 1; }
+  80% { opacity: 1; }
+  100% { transform: translateX(200%); opacity: 0; }
+}
+
+@keyframes signal-pulse-v {
+  0% { transform: translateY(-100%); opacity: 0; }
+  20% { opacity: 1; }
+  80% { opacity: 1; }
+  100% { transform: translateY(200%); opacity: 0; }
+}
+
+/* ═══ ANIMATIONS ═══ */
+@keyframes pulse { 0%,100%{opacity:0.4}50%{opacity:1} }
+@keyframes breathe { 0%,100%{opacity:0.7}50%{opacity:1} }
+@keyframes veto-flash { 0%{background:rgba(224,72,72,0.12)}100%{background:transparent} }
+@keyframes fade-up { from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)} }
+
+/* ═══ SECTION LABELS ═══
+   Flow-stage indicators that sit between panel groups */
+
+.stage-label {
+  font-family: var(--mono);
+  font-size: 7px;
+  letter-spacing: 2.5px;
+  text-transform: uppercase;
+  color: var(--t-dim);
+  padding: 0 8px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 16px;
+  flex-shrink: 0;
+}
+
+.stage-label::before {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(90deg, var(--b-dim), transparent);
+}
+
+.stage-label::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--b-dim));
+}
+
+/* ═══ AMBIENT GRID ═══ */
+.ambient-grid {
+  position: fixed;
   inset: 0;
   background-image:
-    linear-gradient(var(--border-ghost) 1px, transparent 1px),
-    linear-gradient(90deg, var(--border-ghost) 1px, transparent 1px);
-  background-size: 40px 40px;
+    linear-gradient(var(--b-ghost) 1px, transparent 1px),
+    linear-gradient(90deg, var(--b-ghost) 1px, transparent 1px);
+  background-size: 60px 60px;
   pointer-events: none;
   z-index: 0;
-  opacity: 0.5;
+  opacity: 0.4;
+}
+
+/* ═══ TOOLTIP ═══ */
+.tooltip {
+  position: absolute;
+  background: var(--s4);
+  border: 1px solid var(--b-med);
+  border-radius: 3px;
+  padding: 4px 8px;
+  font-family: var(--mono);
+  font-size: 9px;
+  color: var(--t-max);
+  pointer-events: none;
+  z-index: 100;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.5);
+  animation: fade-up 0.15s ease-out;
 }

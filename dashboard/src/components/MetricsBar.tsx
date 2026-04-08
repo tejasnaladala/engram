@@ -6,87 +6,78 @@ interface MetricsBarProps {
 }
 
 function fmt(n: number): string {
-  if (n >= 1e6) return (n / 1e6).toFixed(1) + 'M'
-  if (n >= 1e3) return (n / 1e3).toFixed(1) + 'K'
+  if (n >= 1e6) return (n/1e6).toFixed(1)+'M'
+  if (n >= 1e3) return (n/1e3).toFixed(1)+'K'
   return n.toFixed(0)
 }
 
-function Val({ label, value, color }: { label: string; value: string; color?: string }) {
+/** Single metric readout — key:value in monospace */
+function R({ k, v, c }: { k: string; v: string; c?: string }) {
   return (
-    <div style={{ display: 'flex', alignItems: 'baseline', gap: '4px' }}>
-      <span style={{ fontFamily: 'var(--font-mono)', fontSize: '7px', letterSpacing: '1px', color: 'var(--text-dim)' }}>
-        {label}
-      </span>
-      <span style={{
-        fontFamily: 'var(--font-mono)', fontSize: '11px', fontWeight: 500,
-        fontVariantNumeric: 'tabular-nums', color: color || 'var(--text-max)',
-        letterSpacing: '0.3px',
-      }}>
-        {value}
-      </span>
-    </div>
+    <span style={{ fontFamily:'var(--mono)', fontSize:'10px', letterSpacing:'0.3px' }}>
+      <span style={{ color:'var(--t-dim)', fontSize:'9px' }}>{k}</span>
+      <span style={{ color:'var(--t-ghost)', margin:'0 3px' }}>:</span>
+      <span style={{ color: c || 'var(--t-max)', fontWeight: 500, fontVariantNumeric:'tabular-nums' }}>{v}</span>
+    </span>
   )
 }
 
 export default function MetricsBar({ metrics, connected }: MetricsBarProps) {
   const hz = metrics.ticks_per_second
-  const hzColor = hz > 800 ? 'var(--mod-m1)' : hz > 400 ? 'var(--mod-pe)' : 'var(--mod-bst)'
+  const hzC = hz > 800 ? 'var(--c-output)' : hz > 400 ? 'var(--c-predict)' : 'var(--c-guard)'
 
   return (
     <div style={{
-      display: 'flex', alignItems: 'center', gap: '12px',
-      padding: '0 10px', height: '32px', flexShrink: 0,
-      background: 'var(--surface-1)',
-      borderBottom: '1px solid var(--border-dim)',
-      position: 'relative', zIndex: 2,
+      display:'flex', alignItems:'center', gap:'14px',
+      padding:'0 12px', height:'30px', flexShrink:0,
+      background:'var(--s1)', borderBottom:'1px solid var(--b-dim)',
+      position:'relative', zIndex:2,
     }}>
-      {/* Top accent line */}
+      {/* Top signal line */}
       <div style={{
-        position: 'absolute', top: 0, left: 0, right: 0, height: '1px',
-        background: `linear-gradient(90deg, transparent, var(--cyan-dim) 30%, ${connected ? 'var(--cyan-med)' : 'var(--border-subtle)'} 50%, var(--cyan-dim) 70%, transparent)`,
+        position:'absolute', top:0, left:0, right:0, height:'1px',
+        background:`linear-gradient(90deg, transparent, ${connected?'var(--cyan-10)':'var(--b-sub)'} 50%, transparent)`,
       }} />
 
-      {/* System ID */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+      {/* System identity */}
+      <div style={{ display:'flex', alignItems:'center', gap:'6px' }}>
         <div style={{
-          width: '4px', height: '4px', borderRadius: '1px',
-          background: 'var(--cyan)',
-          boxShadow: '0 0 8px var(--cyan), 0 0 2px var(--cyan)',
+          width:'4px', height:'4px', borderRadius:'1px', background:'var(--cyan)',
+          boxShadow:'0 0 6px var(--cyan)', animation:'breathe 3s ease-in-out infinite',
         }} />
-        <span style={{ fontFamily: 'var(--font-mono)', fontSize: '10px', fontWeight: 600, letterSpacing: '3px', color: 'var(--cyan)' }}>
+        <span style={{ fontFamily:'var(--mono)', fontSize:'10px', fontWeight:700, letterSpacing:'2.5px', color:'var(--cyan)' }}>
           ENGRAM
         </span>
       </div>
 
-      <div style={{ width: '1px', height: '16px', background: 'var(--border-dim)' }} />
+      <span style={{ color:'var(--t-ghost)', fontFamily:'var(--mono)', fontSize:'10px' }}>│</span>
 
-      {/* Vital readouts */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
-        <div style={{ width: '4px', height: '4px', borderRadius: '50%', background: hzColor, boxShadow: `0 0 4px ${hzColor}` }} />
-        <Val label="Hz" value={hz.toFixed(0)} color={hzColor} />
+      {/* Pipeline vitals — each metric is a signal in the flow */}
+      <div style={{ display:'flex', alignItems:'center', gap:'3px' }}>
+        <div style={{ width:'4px', height:'4px', borderRadius:'50%', background:hzC, boxShadow:`0 0 4px ${hzC}` }} />
+        <R k="Hz" v={hz.toFixed(0)} c={hzC} />
       </div>
+      <R k="spk" v={fmt(metrics.total_spikes)} c="var(--c-input)" />
+      <R k="vto" v={String(metrics.total_vetoes)} c={metrics.total_vetoes>0?'var(--c-guard)':'var(--t-sec)'} />
+      <R k="syn" v={fmt(metrics.active_synapses)} c="var(--c-process)" />
+      <R k="E" v={metrics.energy_units.toFixed(1)} c="var(--c-memory)" />
 
-      <Val label="SPK" value={fmt(metrics.total_spikes)} color="var(--mod-s1)" />
-      <Val label="VTO" value={String(metrics.total_vetoes)} color={metrics.total_vetoes > 0 ? 'var(--mod-bst)' : 'var(--text-sec)'} />
-      <Val label="SYN" value={fmt(metrics.active_synapses)} color="var(--mod-asc)" />
-      <Val label="E" value={metrics.energy_units.toFixed(1)} color="var(--mod-hpc)" />
+      <span style={{ color:'var(--t-ghost)', fontFamily:'var(--mono)', fontSize:'10px' }}>│</span>
 
-      <div style={{ width: '1px', height: '16px', background: 'var(--border-dim)' }} />
+      <R k="t" v={(metrics.sim_time/1000).toFixed(2)+'s'} />
+      <R k="tick" v={String(metrics.tick)} />
 
-      <Val label="T" value={(metrics.sim_time / 1000).toFixed(2) + 's'} />
-      <Val label="#" value={String(metrics.tick)} />
+      <div style={{ flex:1 }} />
 
-      <div style={{ flex: 1 }} />
-
-      {/* Connection */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+      {/* Connection state */}
+      <div style={{ display:'flex', alignItems:'center', gap:'5px' }}>
         <div style={{
-          width: '4px', height: '4px', borderRadius: '50%',
-          background: connected ? 'var(--mod-m1)' : 'var(--mod-pe)',
-          boxShadow: connected ? '0 0 6px var(--mod-m1)' : undefined,
+          width:'4px', height:'4px', borderRadius:'50%',
+          background: connected ? 'var(--c-output)' : 'var(--c-predict)',
+          boxShadow: connected ? '0 0 6px var(--c-output)' : undefined,
           animation: connected ? undefined : 'pulse 2s ease-in-out infinite',
         }} />
-        <span style={{ fontFamily: 'var(--font-mono)', fontSize: '8px', letterSpacing: '1.5px', color: connected ? 'var(--mod-m1)' : 'var(--mod-pe)' }}>
+        <span style={{ fontFamily:'var(--mono)', fontSize:'8px', letterSpacing:'1.5px', color: connected?'var(--c-output)':'var(--c-predict)' }}>
           {connected ? 'LIVE' : 'SIM'}
         </span>
       </div>
