@@ -11,3 +11,13 @@ __pycache__/
 pkg/
 *.wasm
 .playwright-mcp/
+*.png
+*.jpg
+*.gif
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+.idea/
+.vscode/
+*.engram
