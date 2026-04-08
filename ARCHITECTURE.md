@@ -106,4 +106,4 @@ Snapshots are serialized as MessagePack and streamed via WebSocket to the Observ
 2. **Event-driven, not clock-cycle**: Process only when spikes occur. At >90% sparsity, this is faster than dense simulation.
 3. **CSR sparse synapses**: Compressed Sparse Row format. Memory-efficient for the primary access pattern (outgoing connections from a spiking neuron).
 4. **Local learning, not backprop**: Each pathway learns independently through its own learning rule. No global backward pass.
-5. **Safety as a first-class citizen**: The safety kernel is not optional middleware — it's part of the cognitive loop.
+5. **Safety as a first-class citizen**: The safety kernel is not optional middleware -- it's part of the cognitive loop.

@@ -54,7 +54,7 @@ impl Neuromodulators {
     }
 }
 
-/// The LearningRule trait — the "autograd" equivalent for adaptive systems.
+/// The LearningRule trait -- the "autograd" equivalent for adaptive systems.
 /// Every learning rule implements this interface. Rules are applied locally
 /// to individual synapse matrices, with access to neuromodulatory signals.
 pub trait LearningRule: Send {
@@ -112,7 +112,7 @@ pub struct ThreeFactorSTDP {
     // Internal state
     pre_traces: Vec<f64>,
     post_traces: Vec<f64>,
-    /// Per-synapse eligibility traces (sparse — only stored for active synapses)
+    /// Per-synapse eligibility traces (sparse -- only stored for active synapses)
     eligibility: Vec<f64>,
 }
 
@@ -125,7 +125,7 @@ impl ThreeFactorSTDP {
             tau_minus: 20.0,
             w_max: 1.0,
             w_min: 0.0,
-            tau_eligibility: 1000.0, // 1 second — long enough for delayed reward
+            tau_eligibility: 1000.0, // 1 second -- long enough for delayed reward
             eta: 0.005,
             pre_traces: vec![0.0; pre_count],
             post_traces: vec![0.0; post_count],
@@ -233,7 +233,7 @@ impl LearningRule for ThreeFactorSTDP {
     }
 }
 
-/// Simple Hebbian learning rule — "fire together, wire together."
+/// Simple Hebbian learning rule -- "fire together, wire together."
 /// No eligibility traces, no modulation. Pure co-activation strengthening.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct HebbianRule {

@@ -1,15 +1,15 @@
-// Engram Neuro-Clinical Design System — Theme Constants
+// Engram Neuro-Clinical Design System -- Theme Constants
 // Based on radiology workstation conventions, neuroimaging color maps,
 // and computational neuroscience visualization standards.
 
-/** Module colors — mapped to neuroanatomical conventions */
+/** Module colors -- mapped to neuroanatomical conventions */
 export const MODULE_COLORS = {
-  Sensory: '#3dd8e0',          // Somatosensory cortex — cool cyan
-  AssociativeMemory: '#8b6cf0', // Association cortex — violet
-  PredictiveError: '#e8943a',   // Predictive coding — metabolic amber
-  EpisodicMemory: '#4ac0d0',   // Hippocampal — teal
-  ActionSelector: '#3dbd5c',   // Motor cortex — clinical green
-  SafetyKernel: '#d94040',     // Brainstem/autonomic — diagnostic red
+  Sensory: '#3dd8e0',          // Somatosensory cortex -- cool cyan
+  AssociativeMemory: '#8b6cf0', // Association cortex -- violet
+  PredictiveError: '#e8943a',   // Predictive coding -- metabolic amber
+  EpisodicMemory: '#4ac0d0',   // Hippocampal -- teal
+  ActionSelector: '#3dbd5c',   // Motor cortex -- clinical green
+  SafetyKernel: '#d94040',     // Brainstem/autonomic -- diagnostic red
 } as const
 
 /** Anatomically accurate module naming */
@@ -66,6 +66,6 @@ export const ACCENT = {
   primaryGlow: 'rgba(61, 216, 224, 0.08)',
 }
 
-/** Neuron count per module — for visualization scaling */
+/** Neuron count per module -- for visualization scaling */
 export const MODULE_NEURON_COUNTS = [128, 256, 64, 64, 128, 32]
 export const TOTAL_NEURONS = 672

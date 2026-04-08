@@ -47,7 +47,7 @@ fn default_rng() -> ChaCha8Rng {
 impl AssociativeMemory {
     pub fn new(num_neurons: usize, num_locations: usize, data_width: usize, seed: u64) -> Self {
         let params = LIFParams {
-            tau_m: 25.0, // slower integration — memory should be persistent
+            tau_m: 25.0, // slower integration -- memory should be persistent
             v_rest: -65.0,
             v_threshold: -52.0,
             v_reset: -68.0,
@@ -212,7 +212,7 @@ impl BrainModule for AssociativeMemory {
         self.output_pattern.fill(0.0);
         self.recent_formations.clear();
         self.recent_spike_count = 0;
-        // Note: we do NOT reset counters — memory persists across episodes
+        // Note: we do NOT reset counters -- memory persists across episodes
     }
 
     fn neuron_count(&self) -> u32 {

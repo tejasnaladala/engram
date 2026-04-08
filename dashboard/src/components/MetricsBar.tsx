@@ -11,7 +11,7 @@ function fmt(n: number): string {
   return n.toFixed(0)
 }
 
-/** Single metric readout — key:value in monospace */
+/** Single metric readout -- key:value in monospace */
 function R({ k, v, c }: { k: string; v: string; c?: string }) {
   return (
     <span style={{ fontFamily:'var(--mono)', fontSize:'10px', letterSpacing:'0.3px' }}>
@@ -52,7 +52,7 @@ export default function MetricsBar({ metrics, connected }: MetricsBarProps) {
 
       <span style={{ color:'var(--t-ghost)', fontFamily:'var(--mono)', fontSize:'10px' }}>│</span>
 
-      {/* Pipeline vitals — each metric is a signal in the flow */}
+      {/* Pipeline vitals -- each metric is a signal in the flow */}
       <div style={{ display:'flex', alignItems:'center', gap:'3px' }}>
         <div style={{ width:'4px', height:'4px', borderRadius:'50%', background:hzC, boxShadow:`0 0 4px ${hzC}` }} />
         <R k="Hz" v={hz.toFixed(0)} c={hzC} />

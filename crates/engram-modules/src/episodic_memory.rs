@@ -58,7 +58,7 @@ pub struct EpisodicMemory {
 impl EpisodicMemory {
     pub fn new(num_neurons: usize, max_episodes: usize) -> Self {
         let params = LIFParams {
-            tau_m: 30.0, // slow — episodic memory is persistent
+            tau_m: 30.0, // slow -- episodic memory is persistent
             v_rest: -65.0,
             v_threshold: -53.0,
             v_reset: -68.0,

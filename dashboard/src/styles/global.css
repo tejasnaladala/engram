@@ -1,7 +1,7 @@
 @import "tailwindcss";
 
 /* ═══════════════════════════════════════════════════════════
-   ENGRAM — SIGNAL FLOW INTERFACE SYSTEM
+   ENGRAM -- SIGNAL FLOW INTERFACE SYSTEM
    Visual narrative: input → processing → memory → action → safety
    Design: unified terminal × engineering dashboard × living machine
    ═══════════════════════════════════════════════════════════ */
@@ -18,14 +18,14 @@
   --s4: #181d2a;
   --s5: #1e2434;
 
-  /* ── SIGNAL COLORS — each has a clear meaning ── */
+  /* ── SIGNAL COLORS -- each has a clear meaning ── */
   --cyan: #38d8e8;         /* primary accent / system alive */
   --cyan-20: rgba(56,216,232,0.20);
   --cyan-10: rgba(56,216,232,0.10);
   --cyan-05: rgba(56,216,232,0.05);
   --cyan-glow: 0 0 16px rgba(56,216,232,0.15);
 
-  /* Module palette — mapped to signal flow role */
+  /* Module palette -- mapped to signal flow role */
   --c-input: #38d8e8;     /* sensory input = cyan */
   --c-process: #8870f0;   /* association/processing = violet */
   --c-predict: #f09030;   /* prediction = amber */
@@ -85,12 +85,12 @@ body {
   transition: border-color 0.3s ease;
 }
 
-/* Active panel — currently receiving data flow */
+/* Active panel -- currently receiving data flow */
 .panel:hover {
   border-color: var(--b-sub);
 }
 
-/* Panel top-edge signal line — shows data is flowing */
+/* Panel top-edge signal line -- shows data is flowing */
 .panel::before {
   content: '';
   position: absolute;

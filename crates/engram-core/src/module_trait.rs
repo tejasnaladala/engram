@@ -22,7 +22,7 @@ pub trait BrainModule: Send {
     ) -> Vec<SpikeEvent>;
 
     /// Generate a lightweight snapshot for dashboard visualization.
-    /// Called at 30fps — must be cheap.
+    /// Called at 30fps -- must be cheap.
     fn snapshot(&self) -> ModuleSnapshot;
 
     /// Reset the module to its initial state (for episode boundaries)

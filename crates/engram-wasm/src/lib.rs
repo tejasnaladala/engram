@@ -182,8 +182,8 @@ impl WasmRuntime {
 
         let cell = self.grid[(ny * self.grid_size as i32 + nx) as usize];
         match cell {
-            1 => -0.1,  // wall — don't move
-            3 => {       // hazard — move but penalty
+            1 => -0.1,  // wall -- don't move
+            3 => {       // hazard -- move but penalty
                 self.agent_x = nx as u32;
                 self.agent_y = ny as u32;
                 -1.0

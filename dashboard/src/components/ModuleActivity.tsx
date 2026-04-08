@@ -82,7 +82,7 @@ export default function ModuleActivity({ modules }: ModuleActivityProps) {
               {pct.toFixed(0)}%
             </span>
 
-            {/* Neuron count — visible on hover */}
+            {/* Neuron count -- visible on hover */}
             <span style={{
               fontFamily:'var(--mono)', fontSize:'7px', color:'var(--t-dim)',
               width:'28px', textAlign:'right',

@@ -36,7 +36,7 @@ impl ActionSelector {
     pub fn new(num_actions: usize, neurons_per_action: usize) -> Self {
         let total = num_actions * neurons_per_action;
         let params = LIFParams {
-            tau_m: 10.0,     // fast — actions should be decisive
+            tau_m: 10.0,     // fast -- actions should be decisive
             v_rest: -65.0,
             v_threshold: -55.0,
             v_reset: -72.0,  // deeper reset for sharper competition
@@ -86,7 +86,7 @@ impl ActionSelector {
         // Find the action with the most votes
         let max_votes = *self.action_votes.iter().max().unwrap_or(&0);
         if max_votes == 0 {
-            // No activity — return random action
+            // No activity -- return random action
             return ProposedAction {
                 action_id: 0,
                 confidence: 0.0,
@@ -205,7 +205,7 @@ impl BrainModule for ActionSelector {
         self.action_votes.fill(0);
         self.last_action = None;
         self.recent_spike_count = 0;
-        // Keep reflex map — reflexes persist across episodes
+        // Keep reflex map -- reflexes persist across episodes
     }
 
     fn neuron_count(&self) -> u32 {

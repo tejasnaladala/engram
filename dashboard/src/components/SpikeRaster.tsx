@@ -11,7 +11,7 @@ const MOD_IDX: Record<string,number> = {
   'EpisodicMemory':3,'ActionSelector':4,'SafetyKernel':5,
 }
 
-/** Multi-electrode array — the hero visualization.
+/** Multi-electrode array -- the hero visualization.
  *  Each row = one neuron. Each column = one time frame.
  *  Color = module. Brightness = spike strength.
  *  Interactive: hover shows neuron ID and module. */
@@ -130,7 +130,7 @@ export default function SpikeRaster({ spikeHistory }: SpikeRasterProps) {
       ctx.beginPath(); ctx.moveTo(lbl+i*colW,0); ctx.lineTo(lbl+i*colW,h); ctx.stroke()
     }
 
-    // "Now" indicator — bright line at the right edge
+    // "Now" indicator -- bright line at the right edge
     if (spikeHistory.length > 10) {
       const nowX = lbl + spikeHistory.length * colW
       ctx.strokeStyle = 'rgba(56,216,232,0.15)'

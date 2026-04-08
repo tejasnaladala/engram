@@ -36,7 +36,7 @@ pub async fn run_broadcaster(
             }
         };
 
-        // Broadcast to all connected clients (ignore send errors — no clients connected)
+        // Broadcast to all connected clients (ignore send errors -- no clients connected)
         let _ = tx.send(snapshot_bytes);
     }
 }

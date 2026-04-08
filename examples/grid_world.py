@@ -1,4 +1,4 @@
-"""Engram Grid World Demo — Watch a brain-inspired agent learn to navigate."""
+"""Engram Grid World Demo -- Watch a brain-inspired agent learn to navigate."""
 
 from engram import Runtime
 from engram.environments import GridWorldEnv
@@ -8,7 +8,7 @@ def main():
     rt = Runtime(input_dims=8, num_actions=4, seed=42)
 
     print("=" * 60)
-    print("  ENGRAM — Brain-Inspired Cognitive Runtime")
+    print("  ENGRAM -- Brain-Inspired Cognitive Runtime")
     print("  Grid World Demo")
     print("=" * 60)
 

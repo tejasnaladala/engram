@@ -10,7 +10,7 @@ import SafetyLog from './components/SafetyLog'
 import BrainVisualization from './components/BrainVisualization'
 
 /* ─────────────────────────────────────────────────────────────
-   DEMO DATA — synthetic RuntimeSnapshot generator
+   DEMO DATA -- synthetic RuntimeSnapshot generator
    Produces physiologically plausible data at 30fps
    ───────────────────────────────────────────────────────────── */
 function genDemo(tick: number): RuntimeSnapshot {
@@ -52,7 +52,7 @@ function genDemo(tick: number): RuntimeSnapshot {
 }
 
 /* ─────────────────────────────────────────────────────────────
-   PANEL HEADER — consistent across all stations
+   PANEL HEADER -- consistent across all stations
    ───────────────────────────────────────────────────────────── */
 function PH({ title, color, tag, stage }: { title: string; color?: string; tag?: string; stage?: string }) {
   return (
@@ -66,7 +66,7 @@ function PH({ title, color, tag, stage }: { title: string; color?: string; tag?:
 }
 
 /* ─────────────────────────────────────────────────────────────
-   FLOW STAGE DIVIDER — labels between pipeline sections
+   FLOW STAGE DIVIDER -- labels between pipeline sections
    ───────────────────────────────────────────────────────────── */
 function FlowDivider({ label }: { label: string }) {
   return (
@@ -77,7 +77,7 @@ function FlowDivider({ label }: { label: string }) {
 }
 
 /* ═════════════════════════════════════════════════════════════
-   MAIN APP — THE SIGNAL-FLOW NARRATIVE
+   MAIN APP -- THE SIGNAL-FLOW NARRATIVE
    Layout tells the story: input → process → remember → act → guard
    ═════════════════════════════════════════════════════════════ */
 export default function App() {
@@ -121,10 +121,10 @@ export default function App() {
       {/* Ambient engineering grid */}
       <div className="ambient-grid" />
 
-      {/* ═══ SYSTEM STATUS BAR ═══ — the "mission control" strip */}
+      {/* ═══ SYSTEM STATUS BAR ═══ -- the "mission control" strip */}
       <MetricsBar metrics={snapshot.metrics} connected={connected} />
 
-      {/* ═══ MAIN WORKSPACE ═══ — the signal-flow pipeline
+      {/* ═══ MAIN WORKSPACE ═══ -- the signal-flow pipeline
           Layout narrative:
           ┌────────────┬──────────────────────────┬───────────┐
           │ PERCEPTION │   NEURAL PROCESSING      │ COGNITION │
@@ -148,19 +148,19 @@ export default function App() {
       }}>
 
         {/* ═══ COLUMN 1: PERCEPTION ═══ */}
-        {/* Volumetric brain — the "what are we looking at" anchor */}
+        {/* Volumetric brain -- the "what are we looking at" anchor */}
         <div className="panel" style={{ gridRow: '1/2' }}>
           <PH title="NEURAL TOPOLOGY" color="var(--c-input)" tag="3D" stage="01" />
           <BrainVisualization modules={snapshot.modules} />
         </div>
 
-        {/* Regional readouts — per-region activation levels */}
+        {/* Regional readouts -- per-region activation levels */}
         <div className="panel" style={{ gridRow: '2/3' }}>
           <PH title="REGIONAL ACTIVATION" tag="RT" stage="02" />
           <ModuleActivity modules={snapshot.modules} />
         </div>
 
-        {/* ═══ COLUMN 2: PROCESSING ═══ — the hero, full height */}
+        {/* ═══ COLUMN 2: PROCESSING ═══ -- the hero, full height */}
         <div className="panel" style={{ gridRow: '1/3' }}>
           <PH title="NEURAL ACTIVITY" color="var(--c-input)" tag={`${totalActive} ACTIVE`} stage="03" />
           <SpikeRaster spikeHistory={spikeHistory} />
@@ -168,19 +168,19 @@ export default function App() {
 
         {/* ═══ COLUMN 3: COGNITION + MEMORY + SAFETY ═══ */}
         <div style={{ gridRow: '1/3', display: 'flex', flexDirection: 'column', gap: '2px' }}>
-          {/* Prediction error — the learning signal */}
+          {/* Prediction error -- the learning signal */}
           <div className="panel" style={{ flex: 1 }}>
             <PH title="PREDICTION ERROR" color="var(--c-predict)" tag="PE" stage="04" />
             <PredictionError history={errorHistory} />
           </div>
 
-          {/* Memory map — where experiences are stored */}
+          {/* Memory map -- where experiences are stored */}
           <div className="panel" style={{ flex: 1 }}>
             <PH title="MEMORY MAP" color="var(--c-memory)" tag="fMEM" stage="05" />
             <MemoryHeatMap formations={snapshot.memory_formations} tick={snapshot.metrics.tick} />
           </div>
 
-          {/* Safety governor — the final gate before action */}
+          {/* Safety governor -- the final gate before action */}
           <div className="panel" style={{ flex: 0.6 }}>
             <PH title="SAFETY GOVERNOR" color="var(--c-guard)" tag={snapshot.metrics.total_vetoes > 0 ? `${snapshot.metrics.total_vetoes}` : 'OK'} stage="06" />
             <SafetyLog vetoes={vetoLog} />
@@ -188,7 +188,7 @@ export default function App() {
         </div>
       </div>
 
-      {/* ═══ STATUS LINE ═══ — system identification footer */}
+      {/* ═══ STATUS LINE ═══ -- system identification footer */}
       <div style={{
         height: '18px', display: 'flex', alignItems: 'center',
         padding: '0 10px', gap: '20px',

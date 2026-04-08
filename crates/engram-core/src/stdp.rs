@@ -109,7 +109,7 @@ impl STDPState {
             // If the pre-neuron fired recently (pre_trace > 0), the pre fired
             // BEFORE post → potentiation (LTP)
             // We need to iterate all pre-neurons that connect to post_id.
-            // This is the transpose lookup — expensive in CSR format.
+            // This is the transpose lookup -- expensive in CSR format.
             // For moderate-size networks, we iterate all rows.
             for pre_id in 0..synapses.pre_count {
                 let pre_trace = self.pre_traces[pre_id as usize];

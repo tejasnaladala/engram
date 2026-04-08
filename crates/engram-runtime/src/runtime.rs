@@ -18,7 +18,7 @@ use engram_modules::{
 use crate::config::RuntimeConfig;
 use crate::metrics::MetricsTracker;
 
-/// The Engram cognitive runtime — orchestrates all brain modules through
+/// The Engram cognitive runtime -- orchestrates all brain modules through
 /// a 10-step cognitive loop per simulation tick.
 pub struct EngramRuntime {
     pub config: RuntimeConfig,
@@ -402,7 +402,7 @@ impl EngramRuntime {
     pub fn reset_episode(&mut self) {
         self.sensory.reset();
         self.predictive.reset();
-        // Don't reset associative memory — it persists across episodes
+        // Don't reset associative memory -- it persists across episodes
         self.episodic.reset();
         self.action_selector.reset();
         self.safety.reset();

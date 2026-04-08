@@ -57,9 +57,9 @@ pub struct SafetyKernel {
 impl SafetyKernel {
     pub fn new(num_neurons: usize) -> Self {
         let params = LIFParams {
-            tau_m: 5.0,       // very fast — safety must be responsive
+            tau_m: 5.0,       // very fast -- safety must be responsive
             v_rest: -65.0,
-            v_threshold: -60.0, // low threshold — sensitive
+            v_threshold: -60.0, // low threshold -- sensitive
             v_reset: -70.0,
             r_membrane: 20.0,
             refractory_ms: 0.5,  // very short refractory
@@ -268,7 +268,7 @@ impl BrainModule for SafetyKernel {
         self.action_times.clear();
         self.recent_vetoes.clear();
         self.recent_spike_count = 0;
-        // Keep learned inhibitions — they persist across episodes
+        // Keep learned inhibitions -- they persist across episodes
     }
 
     fn neuron_count(&self) -> u32 {

@@ -1,4 +1,4 @@
-"""Engram CLI — command-line interface for the cognitive runtime."""
+"""Engram CLI -- command-line interface for the cognitive runtime."""
 
 import click
 from rich.console import Console
@@ -12,7 +12,7 @@ console = Console()
 
 @click.group()
 def main():
-    """Engram — Brain-inspired adaptive intelligence runtime."""
+    """Engram -- Brain-inspired adaptive intelligence runtime."""
     pass
 
 
@@ -29,7 +29,7 @@ def run(episodes: int, render: bool, seed: int):
     rt = Runtime(input_dims=8, num_actions=4, seed=seed)
 
     console.print(Panel(
-        "[bold cyan]Engram[/] — Brain-Inspired Cognitive Runtime",
+        "[bold cyan]Engram[/] -- Brain-Inspired Cognitive Runtime",
         subtitle="Grid World Demo",
     ))
 

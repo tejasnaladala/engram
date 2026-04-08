@@ -15,7 +15,7 @@ export default function PredictionError({ history }: PredictionErrorProps) {
     <div style={{ width:'100%', height:'calc(100% - 22px)', padding:'2px 4px 2px 0', position:'relative' }}
       onClick={() => setShowAvg(!showAvg)} title="Click to toggle average line">
 
-      {/* Live readout — top right */}
+      {/* Live readout -- top right */}
       <div style={{
         position:'absolute', top:'4px', right:'8px', zIndex:2,
         display:'flex', flexDirection:'column', alignItems:'flex-end', gap:'1px',

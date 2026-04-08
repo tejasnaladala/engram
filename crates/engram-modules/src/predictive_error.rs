@@ -32,7 +32,7 @@ impl PredictiveError {
         let params = LIFParams {
             tau_m: 15.0,
             v_rest: -65.0,
-            v_threshold: -50.0, // more excitable — error should be responsive
+            v_threshold: -50.0, // more excitable -- error should be responsive
             v_reset: -70.0,
             r_membrane: 12.0,
             refractory_ms: 1.5,

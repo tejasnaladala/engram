@@ -1,5 +1,5 @@
 """
-Engram — Brain-inspired adaptive intelligence runtime.
+Engram -- Brain-inspired adaptive intelligence runtime.
 
 A modular cognitive architecture with real spiking neurons, STDP learning,
 predictive coding, episodic memory, and a safety kernel.
