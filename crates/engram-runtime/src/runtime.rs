@@ -2,8 +2,9 @@ use rand::SeedableRng;
 use rand_chacha::ChaCha8Rng;
 
 use engram_core::{
-    BrainModule, MemoryFormation, ModuleId, ModuleSnapshot, RuntimeSnapshot, STDPParams,
-    STDPState, SpikeBuffer, SpikeEvent, SynapseMatrix, VetoEvent,
+    BrainModule, MemoryFormation, RuntimeSnapshot,
+    SpikeBuffer, SpikeEvent, SynapseMatrix, VetoEvent,
+    Neuromodulators, ThreeFactorSTDP, LearningRule,
 };
 use engram_modules::{
     action_selector::ActionSelector,
@@ -30,18 +31,22 @@ pub struct EngramRuntime {
     pub action_selector: ActionSelector,
     pub safety: SafetyKernel,
 
-    // Inter-module synapses with STDP
+    // Inter-module synapses with three-factor learning
     pub syn_sensory_to_assoc: SynapseMatrix,
-    pub stdp_sensory_to_assoc: STDPState,
+    pub learn_sensory_to_assoc: ThreeFactorSTDP,
 
     pub syn_sensory_to_pred: SynapseMatrix,
-    pub stdp_sensory_to_pred: STDPState,
+    pub learn_sensory_to_pred: ThreeFactorSTDP,
 
     pub syn_assoc_to_pred: SynapseMatrix,
-    pub stdp_assoc_to_pred: STDPState,
+    pub learn_assoc_to_pred: ThreeFactorSTDP,
 
     pub syn_assoc_to_action: SynapseMatrix,
-    pub stdp_assoc_to_action: STDPState,
+    pub learn_assoc_to_action: ThreeFactorSTDP,
+
+    // Neuromodulatory system
+    pub modulators: Neuromodulators,
+    pub reward_baseline: f64,
 
     // Spike buffer for dashboard
     pub spike_buffer: SpikeBuffer,
@@ -95,10 +100,10 @@ impl EngramRuntime {
             config.w_init_max,
             &mut rng,
         );
-        let stdp_sensory_to_assoc = STDPState::new(
+        let learn_sensory_to_assoc = ThreeFactorSTDP::new(
             sensory_count,
             config.assoc_neurons,
-            STDPParams::default(),
+            syn_sensory_to_assoc.nnz(),
         );
 
         let syn_sensory_to_pred = SynapseMatrix::random_sparse(
@@ -108,10 +113,10 @@ impl EngramRuntime {
             config.w_init_max,
             &mut rng,
         );
-        let stdp_sensory_to_pred = STDPState::new(
+        let learn_sensory_to_pred = ThreeFactorSTDP::new(
             sensory_count,
             config.pred_error_neurons,
-            STDPParams::default(),
+            syn_sensory_to_pred.nnz(),
         );
 
         let syn_assoc_to_pred = SynapseMatrix::random_sparse(
@@ -121,10 +126,10 @@ impl EngramRuntime {
             config.w_init_max,
             &mut rng,
         );
-        let stdp_assoc_to_pred = STDPState::new(
+        let learn_assoc_to_pred = ThreeFactorSTDP::new(
             config.assoc_neurons,
             config.pred_error_neurons,
-            STDPParams::default(),
+            syn_assoc_to_pred.nnz(),
         );
 
         let syn_assoc_to_action = SynapseMatrix::random_sparse(
@@ -134,10 +139,12 @@ impl EngramRuntime {
             config.w_init_max,
             &mut rng,
         );
-        let stdp_assoc_to_action = STDPState::new(
+        let learn_assoc_to_action = ThreeFactorSTDP::with_params(
             config.assoc_neurons,
             action_count,
-            STDPParams::default(),
+            syn_assoc_to_action.nnz(),
+            500.0,  // shorter eligibility for action pathway
+            0.008,  // higher learning rate for action selection
         );
 
         Self {
@@ -149,13 +156,15 @@ impl EngramRuntime {
             action_selector,
             safety,
             syn_sensory_to_assoc,
-            stdp_sensory_to_assoc,
+            learn_sensory_to_assoc,
             syn_sensory_to_pred,
-            stdp_sensory_to_pred,
+            learn_sensory_to_pred,
             syn_assoc_to_pred,
-            stdp_assoc_to_pred,
+            learn_assoc_to_pred,
             syn_assoc_to_action,
-            stdp_assoc_to_action,
+            learn_assoc_to_action,
+            modulators: Neuromodulators::default(),
+            reward_baseline: 0.0,
             spike_buffer: SpikeBuffer::new(5000),
             sim_time: 0.0,
             running: true,
@@ -234,12 +243,12 @@ impl EngramRuntime {
         let pred_spikes = self.predictive.step(dt, sim_time, &pred_input_spikes);
         self.spike_buffer.extend(pred_spikes.iter().cloned());
 
-        // === STEP 6: Error-Modulated STDP ===
-        let lr_mod = self.predictive.learning_rate_modifier();
-        self.stdp_sensory_to_assoc.set_learning_rate_mod(lr_mod);
-        self.stdp_sensory_to_pred.set_learning_rate_mod(lr_mod);
-        self.stdp_assoc_to_pred.set_learning_rate_mod(lr_mod);
-        self.stdp_assoc_to_action.set_learning_rate_mod(lr_mod);
+        // === STEP 6: Update Neuromodulatory Signals ===
+        self.modulators.update(
+            self.current_reward,
+            self.predictive.error,
+            &mut self.reward_baseline,
+        );
 
         // === STEP 7: Action Selection ===
         // Route associative spikes to action selector
@@ -296,34 +305,39 @@ impl EngramRuntime {
             self.spike_buffer.extend(episodic_spikes.iter().cloned());
         }
 
-        // === STEP 10: STDP Weight Updates ===
+        // === STEP 10: Three-Factor Learning Rule Updates ===
+        // Each pathway learns via eligibility traces * neuromodulatory signal
         let assoc_spike_ids: Vec<u32> = assoc_spikes.iter().map(|s| s.neuron_id).collect();
         let pred_spike_ids: Vec<u32> = pred_spikes.iter().map(|s| s.neuron_id).collect();
         let action_spike_ids: Vec<u32> = action_spikes.iter().map(|s| s.neuron_id).collect();
 
-        self.stdp_sensory_to_assoc.apply(
+        self.learn_sensory_to_assoc.apply(
             dt,
             &mut self.syn_sensory_to_assoc,
             &sensory_ids,
             &assoc_spike_ids,
+            &self.modulators,
         );
-        self.stdp_sensory_to_pred.apply(
+        self.learn_sensory_to_pred.apply(
             dt,
             &mut self.syn_sensory_to_pred,
             &sensory_ids,
             &pred_spike_ids,
+            &self.modulators,
         );
-        self.stdp_assoc_to_pred.apply(
+        self.learn_assoc_to_pred.apply(
             dt,
             &mut self.syn_assoc_to_pred,
             &assoc_spike_ids,
             &pred_spike_ids,
+            &self.modulators,
         );
-        self.stdp_assoc_to_action.apply(
+        self.learn_assoc_to_action.apply(
             dt,
             &mut self.syn_assoc_to_action,
             &assoc_spike_ids,
             &action_spike_ids,
+            &self.modulators,
         );
 
         // === Update Metrics ===
