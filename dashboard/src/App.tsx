@@ -9,16 +9,12 @@ import MemoryHeatMap from './components/MemoryHeatMap'
 import SafetyLog from './components/SafetyLog'
 import BrainVisualization from './components/BrainVisualization'
 
-// ──────────────────────────────────────────────────────────────────
-// Demo data generator — produces physiologically plausible synthetic
-// data when no live server is connected
-// ──────────────────────────────────────────────────────────────────
 function generateDemoSnapshot(tick: number): RuntimeSnapshot {
   const t = tick * 0.001
   const modules = MODULE_NAMES.map((_, i) => ({
-    module_id: ['Sensory', 'AssociativeMemory', 'PredictiveError', 'EpisodicMemory', 'ActionSelector', 'SafetyKernel'][i],
-    neuron_count: [128, 256, 64, 64, 128, 32][i],
-    active_count: Math.floor(Math.random() * [30, 50, 15, 10, 25, 5][i]),
+    module_id: ['Sensory','AssociativeMemory','PredictiveError','EpisodicMemory','ActionSelector','SafetyKernel'][i],
+    neuron_count: [128,256,64,64,128,32][i],
+    active_count: Math.floor(Math.random() * [30,50,15,10,25,5][i]),
     avg_potential: -65 + Math.random() * 10,
     spike_rate: Math.random() * 500,
     activity_level: 0.1 + Math.random() * 0.7 * (0.5 + 0.5 * Math.sin(t * 2 + i)),
@@ -26,10 +22,10 @@ function generateDemoSnapshot(tick: number): RuntimeSnapshot {
 
   const spikes: SpikeEvent[] = []
   for (let m = 0; m < 6; m++) {
-    const count = Math.floor(Math.random() * [15, 20, 8, 5, 12, 3][m])
+    const count = Math.floor(Math.random() * [15,20,8,5,12,3][m])
     for (let s = 0; s < count; s++) {
       spikes.push({
-        source_module: ['Sensory', 'AssociativeMemory', 'PredictiveError', 'EpisodicMemory', 'ActionSelector', 'SafetyKernel'][m],
+        source_module: ['Sensory','AssociativeMemory','PredictiveError','EpisodicMemory','ActionSelector','SafetyKernel'][m],
         neuron_id: Math.floor(Math.random() * modules[m].neuron_count),
         timestamp: tick + Math.random(),
         strength: 0.5 + Math.random() * 0.5,
@@ -37,10 +33,10 @@ function generateDemoSnapshot(tick: number): RuntimeSnapshot {
     }
   }
 
-  const vetoes: VetoEvent[] = Math.random() < 0.02 ? [{
+  const vetoes: VetoEvent[] = Math.random() < 0.025 ? [{
     timestamp: tick,
     vetoed_action: { action_id: Math.floor(Math.random() * 4), confidence: Math.random(), is_reflex: false },
-    reason: Math.random() < 0.5 ? 'HardConstraint: Contraindicated trajectory' : { LearnedInhibition: { confidence: 0.85 } },
+    reason: Math.random() < 0.5 ? 'HardConstraint: Contraindicated' : { LearnedInhibition: { confidence: 0.85 } },
   }] : []
 
   return {
@@ -58,10 +54,10 @@ function generateDemoSnapshot(tick: number): RuntimeSnapshot {
     recent_spikes: spikes,
     recent_vetoes: vetoes,
     prediction_error: 0.3 + 0.2 * Math.sin(t * 0.5) + Math.random() * 0.1,
-    memory_formations: Math.random() < 0.1 ? [{
+    memory_formations: Math.random() < 0.12 ? [{
       timestamp: tick,
       location_id: Math.floor(Math.random() * 1000),
-      strength: Math.random(),
+      strength: 0.3 + Math.random() * 0.7,
       memory_type: 'Associative',
     }] : [],
     current_action: Math.floor(Math.random() * 4),
@@ -70,21 +66,16 @@ function generateDemoSnapshot(tick: number): RuntimeSnapshot {
   }
 }
 
-// ──────────────────────────────────────────────────────────────────
-// Scan Panel Header — reusable panel frame with clinical title bar
-// ──────────────────────────────────────────────────────────────────
-function PanelHeader({ title, badge }: { title: string; badge?: string }) {
+function PanelHdr({ title, color, tag }: { title: string; color?: string; tag?: string }) {
   return (
-    <div className="panel-header">
-      <span className="panel-header__title">{title}</span>
-      {badge && <span className="panel-header__badge">{badge}</span>}
+    <div className="panel-hdr">
+      {color && <div className="panel-hdr__dot" style={{ background: color, boxShadow: `0 0 6px ${color}` }} />}
+      <span className="panel-hdr__title">{title}</span>
+      {tag && <span className="panel-hdr__tag">{tag}</span>}
     </div>
   )
 }
 
-// ──────────────────────────────────────────────────────────────────
-// Main Application
-// ──────────────────────────────────────────────────────────────────
 export default function App() {
   const [snapshot, setSnapshot] = useState<RuntimeSnapshot | null>(null)
   const [connected, setConnected] = useState(false)
@@ -93,7 +84,6 @@ export default function App() {
   const [vetoLog, setVetoLog] = useState<VetoEvent[]>([])
   const tickRef = useRef(0)
 
-  // Demo mode: generate simulated data
   useEffect(() => {
     const interval = setInterval(() => {
       tickRef.current += 10
@@ -111,144 +101,123 @@ export default function App() {
         setVetoLog(prev => [...prev, ...snap.recent_vetoes].slice(-50))
       }
     }, 33)
-
     return () => clearInterval(interval)
   }, [])
 
-  // WebSocket connection attempt
   useEffect(() => {
     let ws: WebSocket | null = null
-    const connect = () => {
-      try {
-        ws = new WebSocket('ws://localhost:9000/ws')
-        ws.binaryType = 'arraybuffer'
-        ws.onopen = () => setConnected(true)
-        ws.onclose = () => setConnected(false)
-        ws.onerror = () => {}
-      } catch {
-        // demo mode
-      }
-    }
-    connect()
+    try {
+      ws = new WebSocket('ws://localhost:9000/ws')
+      ws.binaryType = 'arraybuffer'
+      ws.onopen = () => setConnected(true)
+      ws.onclose = () => setConnected(false)
+      ws.onerror = () => {}
+    } catch { /* demo mode */ }
     return () => ws?.close()
   }, [])
 
-  // ── Loading state — scan initialization ──
   if (!snapshot) {
     return (
       <div style={{
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        height: '100vh',
-        background: 'var(--surface-0)',
-        flexDirection: 'column',
-        gap: '12px',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        height: '100vh', background: 'var(--void)', flexDirection: 'column', gap: '16px',
       }}>
         <div style={{
-          width: '8px',
-          height: '8px',
-          borderRadius: '50%',
-          background: 'var(--accent-primary)',
-          boxShadow: 'var(--glow-active)',
-          animation: 'pulse-glow 1.5s ease-in-out infinite',
+          width: '2px', height: '2px', borderRadius: '50%',
+          background: 'var(--cyan)', boxShadow: 'var(--cyan-glow)',
+          animation: 'pulse 1.5s ease-in-out infinite',
         }} />
-        <span style={{
-          fontFamily: 'var(--font-clinical)',
-          fontSize: '11px',
-          letterSpacing: '4px',
-          color: 'var(--accent-primary)',
-        }}>
+        <span style={{ fontFamily: 'var(--font-mono)', fontSize: '10px', letterSpacing: '6px', color: 'var(--cyan)' }}>
           ENGRAM
         </span>
-        <span style={{
-          fontFamily: 'var(--font-clinical)',
-          fontSize: '9px',
-          letterSpacing: '2px',
-          color: 'var(--text-tertiary)',
-        }}>
-          INITIALIZING COGNITIVE RUNTIME
+        <span style={{ fontFamily: 'var(--font-mono)', fontSize: '8px', letterSpacing: '3px', color: 'var(--text-dim)' }}>
+          NEURAL INTERFACE LOADING
         </span>
       </div>
     )
   }
 
-  // ── Main layout — neuronavigation workstation ──
   return (
-    <div style={{
-      height: '100vh',
-      display: 'flex',
-      flexDirection: 'column',
-      background: 'var(--surface-0)',
-    }}>
-      {/* Diagnostic header bar */}
+    <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', background: 'var(--void)', position: 'relative' }}>
+      {/* Ambient grid overlay across entire interface */}
+      <div className="grid-overlay" />
+
+      {/* Diagnostic header */}
       <MetricsBar metrics={snapshot.metrics} connected={connected} />
 
-      {/* Main scan panel grid — modeled after DICOM quad-view layout */}
+      {/* Main workspace */}
       <div style={{
-        flex: 1,
-        display: 'grid',
-        gridTemplateColumns: '1fr 2fr',
-        gridTemplateRows: '1.2fr 1fr',
-        gap: 'var(--panel-gap)',
-        padding: 'var(--panel-gap)',
+        flex: 1, display: 'grid',
+        gridTemplateColumns: '280px 1fr 240px',
+        gridTemplateRows: '1fr 1fr',
+        gap: 'var(--gap)',
+        padding: '1px',
         minHeight: 0,
+        position: 'relative',
+        zIndex: 1,
       }}>
-        {/* ═══ Panel 1: Volumetric Brain View (top-left) ═══ */}
-        <div className="scan-panel scan-panel--crosshair">
-          <PanelHeader title="VOLUMETRIC SCAN" badge="3D" />
+        {/* ══ LEFT COLUMN: Brain + Modules ══ */}
+        {/* Volumetric Brain Scan */}
+        <div className="scan-panel" style={{ gridRow: '1 / 2' }}>
+          <PanelHdr title="VOLUMETRIC SCAN" color="var(--cyan)" tag="3D" />
           <BrainVisualization modules={snapshot.modules} />
         </div>
 
-        {/* ═══ Panel 2: Electrophysiology Raster (top-right) ═══ */}
-        <div className="scan-panel">
-          <PanelHeader
-            title="MULTI-CHANNEL ELECTROPHYSIOLOGY"
-            badge={`${snapshot.modules.reduce((s, m) => s + m.active_count, 0)} ACTIVE`}
-          />
+        {/* Regional Activation */}
+        <div className="scan-panel scan-panel--br" style={{ gridRow: '2 / 3' }}>
+          <PanelHdr title="REGIONAL ACTIVATION" tag="RT" />
+          <ModuleActivity modules={snapshot.modules} />
+        </div>
+
+        {/* ══ CENTER: Spike Raster (full height) ══ */}
+        <div className="scan-panel" style={{ gridRow: '1 / 3' }}>
+          <PanelHdr title="MULTI-ELECTRODE ARRAY" color="var(--mod-s1)" tag={`${snapshot.modules.reduce((s,m)=>s+m.active_count,0)} UNITS`} />
           <SpikeRaster spikeHistory={spikeHistory} />
         </div>
 
-        {/* ═══ Panel 3: Bottom-left split — Module Readouts + Safety ═══ */}
-        <div style={{
-          display: 'grid',
-          gridTemplateRows: '1fr 1fr',
-          gap: 'var(--panel-gap)',
-        }}>
-          {/* Module Activity — regional activation readout */}
-          <div className="scan-panel">
-            <PanelHeader title="REGIONAL ACTIVATION" badge="RT" />
-            <ModuleActivity modules={snapshot.modules} />
-          </div>
-
-          {/* Safety Kernel Event Log */}
-          <div className="scan-panel">
-            <PanelHeader
-              title="SAFETY MONITOR"
-              badge={snapshot.metrics.total_vetoes > 0 ? `${snapshot.metrics.total_vetoes} EVENTS` : 'NOMINAL'}
-            />
-            <SafetyLog vetoes={vetoLog} />
-          </div>
-        </div>
-
-        {/* ═══ Panel 4: Bottom-right split — Error Signal + Memory Map ═══ */}
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: '1.5fr 1fr',
-          gap: 'var(--panel-gap)',
-        }}>
-          {/* Prediction Error — clinical waveform monitor */}
-          <div className="scan-panel">
-            <PanelHeader title="PREDICTION ERROR SIGNAL" badge="PE" />
+        {/* ══ RIGHT COLUMN: Error + Memory + Safety ══ */}
+        <div style={{ gridRow: '1 / 3', display: 'flex', flexDirection: 'column', gap: 'var(--gap)' }}>
+          {/* Prediction Error Trace */}
+          <div className="scan-panel" style={{ flex: '1' }}>
+            <PanelHdr title="PREDICTION ERROR" color="var(--mod-pe)" tag="PE" />
             <PredictionError history={errorHistory} />
           </div>
 
-          {/* Memory Formation — functional activation map */}
-          <div className="scan-panel scan-panel--crosshair">
-            <PanelHeader title="MEMORY ACTIVATION MAP" badge="fMEM" />
+          {/* Memory Activation Map */}
+          <div className="scan-panel scan-panel--br" style={{ flex: '1' }}>
+            <PanelHdr title="MEMORY MAP" color="var(--mod-hpc)" tag="fMEM" />
             <MemoryHeatMap formations={snapshot.memory_formations} tick={snapshot.metrics.tick} />
           </div>
+
+          {/* Safety Monitor */}
+          <div className="scan-panel" style={{ flex: '0.7' }}>
+            <PanelHdr title="SAFETY GOVERNOR" color="var(--mod-bst)" tag={snapshot.metrics.total_vetoes > 0 ? `${snapshot.metrics.total_vetoes}` : 'OK'} />
+            <SafetyLog vetoes={vetoLog} />
+          </div>
         </div>
+      </div>
+
+      {/* Bottom status line */}
+      <div style={{
+        height: '18px', display: 'flex', alignItems: 'center',
+        padding: '0 8px', gap: '16px',
+        borderTop: '1px solid var(--border-ghost)',
+        background: 'var(--surface-0)',
+        flexShrink: 0, zIndex: 1,
+      }}>
+        <span style={{ fontFamily: 'var(--font-mono)', fontSize: '7px', letterSpacing: '1px', color: 'var(--text-dim)' }}>
+          ENGRAM NCS v0.1.0
+        </span>
+        <span style={{ fontFamily: 'var(--font-mono)', fontSize: '7px', color: 'var(--text-dim)' }}>
+          LIF/STDP RUNTIME
+        </span>
+        <span style={{ fontFamily: 'var(--font-mono)', fontSize: '7px', color: 'var(--text-dim)' }}>
+          672 NEURONS | 6 REGIONS | 4 PATHWAYS
+        </span>
+        <div style={{ flex: 1 }} />
+        <span style={{ fontFamily: 'var(--font-mono)', fontSize: '7px', color: 'var(--text-dim)' }}>
+          EVENT-DRIVEN COGNITIVE ARCHITECTURE
+        </span>
       </div>
     </div>
   )

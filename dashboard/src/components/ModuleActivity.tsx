@@ -1,5 +1,5 @@
 import type { ModuleSnapshot } from '../lib/protocol'
-import { MODULE_NAMES, MODULE_COLOR_ARRAY, MODULE_ABBREVS, MODULE_COLOR_DIM } from '../lib/theme'
+import { MODULE_NAMES, MODULE_COLOR_ARRAY, MODULE_ABBREVS } from '../lib/theme'
 
 interface ModuleActivityProps {
   modules: ModuleSnapshot[]
@@ -8,96 +8,65 @@ interface ModuleActivityProps {
 export default function ModuleActivity({ modules }: ModuleActivityProps) {
   return (
     <div style={{
-      display: 'flex',
-      flexDirection: 'column',
-      gap: '3px',
-      padding: '8px 10px',
-      height: '100%',
-      justifyContent: 'center',
+      display: 'flex', flexDirection: 'column', gap: '1px',
+      padding: '6px 8px', height: 'calc(100% - 22px)', justifyContent: 'center',
     }}>
       {modules.map((mod, i) => {
         const pct = Math.min(100, mod.activity_level * 100)
-        const color = MODULE_COLOR_ARRAY[i]
-        const isActive = pct > 30
+        const c = MODULE_COLOR_ARRAY[i]
+        const active = pct > 25
 
         return (
-          <div key={i} style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '6px',
-            padding: '3px 0',
-          }}>
-            {/* Module abbreviation badge */}
+          <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '2px 0' }}>
+            {/* Badge */}
             <div style={{
-              fontFamily: 'var(--font-clinical)',
-              fontSize: '8px',
-              fontWeight: 600,
-              letterSpacing: '0.5px',
-              color: color,
-              width: '26px',
-              textAlign: 'center',
-              padding: '2px 0',
-              background: MODULE_COLOR_DIM[i],
-              borderRadius: '2px',
-              border: `1px solid ${color}22`,
+              fontFamily: 'var(--font-mono)', fontSize: '7px', fontWeight: 600,
+              letterSpacing: '0.3px', color: c, width: '22px', textAlign: 'center',
+              padding: '1px 0', background: `${c}10`, borderRadius: '1px',
+              border: `1px solid ${c}18`,
             }}>
               {MODULE_ABBREVS[i]}
             </div>
 
-            {/* Region name */}
+            {/* Name */}
             <div style={{
-              fontFamily: 'var(--font-label)',
-              fontSize: '9px',
-              color: 'var(--text-secondary)',
-              width: '90px',
-              whiteSpace: 'nowrap' as const,
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
+              fontFamily: 'var(--font-sans)', fontSize: '8px', color: 'var(--text-sec)',
+              width: '72px', whiteSpace: 'nowrap' as const, overflow: 'hidden', textOverflow: 'ellipsis',
             }}>
               {MODULE_NAMES[i]}
             </div>
 
-            {/* Activity bar — electrode amplitude indicator style */}
+            {/* Bar */}
             <div style={{
-              flex: 1,
-              height: '4px',
-              background: 'var(--surface-5)',
-              borderRadius: '1px',
-              overflow: 'hidden',
-              position: 'relative',
+              flex: 1, height: '3px', background: 'var(--surface-4)',
+              borderRadius: '1px', overflow: 'hidden',
             }}>
               <div style={{
-                height: '100%',
-                width: `${pct}%`,
-                background: `linear-gradient(90deg, ${color}60, ${color})`,
+                height: '100%', width: `${pct}%`,
+                background: `linear-gradient(90deg, ${c}50, ${c})`,
                 borderRadius: '1px',
-                transition: 'width 120ms ease-out',
-                boxShadow: isActive ? `0 0 6px ${color}40` : undefined,
+                transition: 'width 100ms ease-out',
+                boxShadow: active ? `0 0 6px ${c}30` : undefined,
               }} />
             </div>
 
-            {/* Numeric readout */}
-            <div style={{
-              fontFamily: 'var(--font-clinical)',
-              fontSize: '9px',
+            {/* Value */}
+            <span style={{
+              fontFamily: 'var(--font-mono)', fontSize: '8px',
               fontVariantNumeric: 'tabular-nums',
-              color: isActive ? color : 'var(--text-tertiary)',
-              width: '32px',
-              textAlign: 'right',
+              color: active ? c : 'var(--text-dim)',
+              width: '26px', textAlign: 'right',
             }}>
               {pct.toFixed(0)}%
-            </div>
+            </span>
 
-            {/* Neuron count */}
-            <div style={{
-              fontFamily: 'var(--font-clinical)',
-              fontSize: '8px',
-              color: 'var(--text-tertiary)',
-              width: '24px',
-              textAlign: 'right',
+            {/* Active/total neuron count */}
+            <span style={{
+              fontFamily: 'var(--font-mono)', fontSize: '7px',
+              color: 'var(--text-dim)', width: '28px', textAlign: 'right',
             }}>
               {mod.active_count}/{mod.neuron_count}
-            </div>
+            </span>
           </div>
         )
       })}

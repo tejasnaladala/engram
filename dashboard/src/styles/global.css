@@ -1,292 +1,181 @@
 @import "tailwindcss";
 
 /* ============================================================
-   ENGRAM NEURO-CLINICAL DESIGN SYSTEM
-   Inspired by: radiology workstations, neuronavigation systems,
-   EEG monitoring software, computational neuroscience platforms
+   ENGRAM NEURO-CLINICAL INTERFACE SYSTEM v2
+   Visual language: neuronavigation workstation meets
+   volumetric brain scanner meets holographic operating theater
    ============================================================ */
 
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600&family=Inter:wght@300;400;500;600&display=swap');
+
 :root {
-  /* === CLINICAL SURFACE PALETTE === */
-  /* Based on radiology viewing environments: near-black ambient
-     with high-contrast diagnostic elements */
-  --surface-0: #050508;        /* Deepest — reading room ambient */
-  --surface-1: #0a0b10;        /* Primary background */
-  --surface-2: #0e1017;        /* Panel background */
-  --surface-3: #13151e;        /* Elevated panel / card */
-  --surface-4: #191c28;        /* Active/hover surface */
-  --surface-5: #1f2333;        /* Tertiary / input fields */
+  --void: #020205;
+  --surface-0: #050508;
+  --surface-1: #080a10;
+  --surface-2: #0c0e16;
+  --surface-3: #10131c;
+  --surface-4: #161a26;
 
-  /* === CLINICAL BORDER SYSTEM === */
-  /* Scan panel frame lines — subtle calibration-grid feel */
-  --border-dim: rgba(100, 120, 160, 0.06);
-  --border-subtle: rgba(100, 120, 160, 0.10);
-  --border-default: rgba(100, 120, 160, 0.15);
-  --border-bright: rgba(100, 120, 160, 0.25);
-  --border-active: rgba(80, 200, 220, 0.30);
+  --border-ghost: rgba(80, 120, 180, 0.04);
+  --border-dim: rgba(80, 120, 180, 0.07);
+  --border-subtle: rgba(80, 120, 180, 0.12);
+  --border-med: rgba(80, 120, 180, 0.18);
+  --border-bright: rgba(80, 200, 240, 0.25);
 
-  /* === DIAGNOSTIC TEXT HIERARCHY === */
-  /* Medical imaging: high-contrast text on dark, structured hierarchy */
-  --text-primary: #c8cee0;     /* Main readout — soft white, not harsh */
-  --text-secondary: #7882a0;   /* Labels, annotations */
-  --text-tertiary: #4a5270;    /* Dim metadata, calibration marks */
-  --text-value: #e0e4f0;       /* Numeric values — slightly brighter */
-  --text-heading: #9aa0b8;     /* Section headers — scan panel titles */
+  --text-max: #dce0f0;
+  --text-pri: #a8b0c8;
+  --text-sec: #6878a0;
+  --text-dim: #3c4868;
+  --text-ghost: #2a3450;
 
-  /* === NEUROIMAGING ACCENT PALETTE === */
-  /* Derived from real functional imaging color conventions:
-     - Cyan/teal: structural/anatomical (CT bone windows)
-     - Blue: functional activation (fMRI cool maps)
-     - Warm: metabolic/PET-like activity
-     - Red: alerts, safety, hemorrhage indicators */
+  --cyan: #40e8f0;
+  --cyan-dim: rgba(64, 232, 240, 0.08);
+  --cyan-med: rgba(64, 232, 240, 0.15);
+  --cyan-glow: 0 0 20px rgba(64, 232, 240, 0.12), 0 0 60px rgba(64, 232, 240, 0.04);
 
-  /* Primary diagnostic accent — neuronavigation crosshair */
-  --accent-primary: #3dd8e0;
-  --accent-primary-dim: rgba(61, 216, 224, 0.15);
-  --accent-primary-glow: rgba(61, 216, 224, 0.08);
+  --mod-s1: #40e8f0;
+  --mod-asc: #9070ff;
+  --mod-pe: #f09030;
+  --mod-hpc: #50d0e0;
+  --mod-m1: #40c060;
+  --mod-bst: #e04040;
 
-  /* Module-specific — mapped to brain region conventions */
-  --mod-sensory: #3dd8e0;     /* Primary somatosensory — cool cyan */
-  --mod-association: #8b6cf0;  /* Association cortex — violet/purple */
-  --mod-predictive: #e8943a;   /* Predictive coding — warm amber (metabolic) */
-  --mod-episodic: #4ac0d0;    /* Hippocampal — teal-cyan */
-  --mod-motor: #3dbd5c;       /* Motor cortex — green (clinical standard) */
-  --mod-safety: #d94040;      /* Brainstem/alarm — diagnostic red */
+  --font-mono: 'JetBrains Mono', 'SF Mono', monospace;
+  --font-sans: 'Inter', -apple-system, system-ui, sans-serif;
 
-  /* === SCAN WINDOW COLORS === */
-  /* Mimics DICOM windowing: bone, brain, lung windows */
-  --scan-bone: #d4c8b0;       /* High HU — bone density */
-  --scan-tissue: #888888;     /* Mid gray — soft tissue */
-  --scan-csf: #2a2a3a;        /* Low HU — cerebrospinal fluid */
-  --scan-air: #0a0a0f;        /* Lowest — air/void */
-
-  /* === FUNCTIONAL OVERLAY PALETTE === */
-  /* fMRI/PET activation overlays — standard neuroimaging hot/cool maps */
-  --func-hot-1: #400000;
-  --func-hot-2: #8b0000;
-  --func-hot-3: #d44000;
-  --func-hot-4: #ff8c00;
-  --func-hot-5: #ffd000;
-  --func-cool-1: #000040;
-  --func-cool-2: #0040a0;
-  --func-cool-3: #0080d0;
-  --func-cool-4: #00c8ff;
-
-  /* === STATUS INDICATORS === */
-  --status-active: #3dbd5c;
-  --status-warning: #e8943a;
-  --status-critical: #d94040;
-  --status-nominal: #3dd8e0;
-  --status-offline: #4a5270;
-
-  /* === TYPOGRAPHY === */
-  /* Clinical: monospace for values, sans-serif for labels */
-  --font-clinical: 'JetBrains Mono', 'SF Mono', 'Cascadia Code', 'Fira Code', monospace;
-  --font-label: 'Inter', 'SF Pro Display', -apple-system, system-ui, sans-serif;
-
-  /* === SPACING SCALE === */
-  /* Dense clinical layout — tighter than consumer UI */
-  --space-1: 2px;
-  --space-2: 4px;
-  --space-3: 6px;
-  --space-4: 8px;
-  --space-5: 12px;
-  --space-6: 16px;
-  --space-7: 20px;
-  --space-8: 28px;
-
-  /* === SCAN PANEL GEOMETRY === */
-  --panel-radius: 3px;        /* Sharp — medical devices use minimal rounding */
-  --panel-gap: 2px;           /* Tight panel gaps like DICOM quad-view */
-  --panel-header-h: 24px;     /* Compact headers */
-
-  /* === GLOW / VOLUMETRIC EFFECTS === */
-  --glow-primary: 0 0 12px rgba(61, 216, 224, 0.15), 0 0 4px rgba(61, 216, 224, 0.08);
-  --glow-active: 0 0 20px rgba(61, 216, 224, 0.25), 0 0 6px rgba(61, 216, 224, 0.12);
-  --glow-danger: 0 0 12px rgba(217, 64, 64, 0.20);
+  --panel-r: 2px;
+  --gap: 1px;
 }
 
-* {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
-}
+* { margin: 0; padding: 0; box-sizing: border-box; }
 
 body {
-  background: var(--surface-0);
-  color: var(--text-primary);
-  font-family: var(--font-label);
-  font-size: 12px;
-  line-height: 1.4;
+  background: var(--void);
+  color: var(--text-pri);
+  font-family: var(--font-sans);
+  font-size: 11px;
   overflow: hidden;
   height: 100vh;
   -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
 }
 
-#root {
-  height: 100vh;
-}
+#root { height: 100vh; }
 
-/* === SCROLLBAR — clinical thin profile === */
-::-webkit-scrollbar { width: 4px; height: 4px; }
-::-webkit-scrollbar-track { background: var(--surface-2); }
-::-webkit-scrollbar-thumb {
-  background: var(--border-default);
-  border-radius: 2px;
-}
-::-webkit-scrollbar-thumb:hover { background: var(--border-bright); }
+::-webkit-scrollbar { width: 3px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border-dim); border-radius: 1px; }
 
-/* === SCAN PANEL — the core container primitive === */
+/* ── SCAN PANEL ── */
 .scan-panel {
-  background: var(--surface-2);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--panel-radius);
+  background: var(--surface-1);
+  border: 1px solid var(--border-dim);
+  border-radius: var(--panel-r);
   overflow: hidden;
   display: flex;
   flex-direction: column;
   position: relative;
 }
 
+/* Top edge glow — scan acquisition indicator */
 .scan-panel::before {
   content: '';
   position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
+  top: 0; left: 0; right: 0;
   height: 1px;
   background: linear-gradient(90deg,
     transparent 0%,
-    var(--border-default) 20%,
-    var(--border-bright) 50%,
-    var(--border-default) 80%,
+    var(--border-subtle) 15%,
+    var(--cyan-dim) 50%,
+    var(--border-subtle) 85%,
     transparent 100%
   );
-  opacity: 0.5;
+  z-index: 2;
 }
 
-/* === PANEL HEADER — scan annotation bar === */
-.panel-header {
-  height: var(--panel-header-h);
-  display: flex;
-  align-items: center;
-  padding: 0 var(--space-5);
-  border-bottom: 1px solid var(--border-dim);
-  background: linear-gradient(180deg, rgba(100, 120, 160, 0.03), transparent);
-  flex-shrink: 0;
-}
-
-.panel-header__title {
-  font-family: var(--font-clinical);
-  font-size: 9px;
-  font-weight: 500;
-  letter-spacing: 1.5px;
-  text-transform: uppercase;
-  color: var(--text-secondary);
-}
-
-.panel-header__badge {
-  font-family: var(--font-clinical);
-  font-size: 8px;
-  color: var(--accent-primary);
-  margin-left: auto;
-  letter-spacing: 0.5px;
-}
-
-/* === CROSSHAIR / CALIBRATION MARKS === */
-/* Subtle registration marks at panel corners — medical imaging convention */
-.scan-panel--crosshair::after {
+/* Corner registration marks */
+.scan-panel::after {
   content: '';
   position: absolute;
-  bottom: 4px;
-  right: 4px;
-  width: 8px;
-  height: 8px;
-  border-right: 1px solid var(--border-default);
-  border-bottom: 1px solid var(--border-default);
-  opacity: 0.4;
+  top: 3px; left: 3px;
+  width: 10px; height: 10px;
+  border-top: 1px solid var(--border-subtle);
+  border-left: 1px solid var(--border-subtle);
+  z-index: 2;
+  pointer-events: none;
 }
 
-/* === ANIMATIONS === */
-@keyframes pulse-glow {
-  0%, 100% { opacity: 0.4; }
-  50% { opacity: 1; }
+.scan-panel--br::after {
+  top: auto; left: auto;
+  bottom: 3px; right: 3px;
+  border-top: none; border-left: none;
+  border-bottom: 1px solid var(--border-subtle);
+  border-right: 1px solid var(--border-subtle);
 }
 
-@keyframes scan-sweep {
-  0% { transform: translateY(-100%); }
-  100% { transform: translateY(100vh); }
+/* ── PANEL HEADER ── */
+.panel-hdr {
+  height: 22px;
+  display: flex;
+  align-items: center;
+  padding: 0 8px;
+  gap: 6px;
+  border-bottom: 1px solid var(--border-ghost);
+  flex-shrink: 0;
+  position: relative;
+  z-index: 1;
 }
 
-@keyframes veto-flash {
-  0% { background: rgba(217, 64, 64, 0.20); }
-  100% { background: transparent; }
-}
-
-@keyframes fade-in {
-  from { opacity: 0; transform: translateY(4px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-
-@keyframes data-stream {
-  0% { opacity: 0.3; }
-  50% { opacity: 0.8; }
-  100% { opacity: 0.3; }
-}
-
-/* === UTILITY CLASSES === */
-.font-clinical { font-family: var(--font-clinical); }
-.font-label { font-family: var(--font-label); }
-.text-value { color: var(--text-value); font-family: var(--font-clinical); }
-.text-label { color: var(--text-secondary); font-family: var(--font-clinical); font-size: 9px; letter-spacing: 1px; text-transform: uppercase; }
-.text-dim { color: var(--text-tertiary); }
-
-/* === DIAGNOSTIC READOUT === */
-/* Clinical numeric display — used in metrics, measurements */
-.readout {
-  font-family: var(--font-clinical);
-  font-size: 11px;
-  color: var(--text-value);
-  letter-spacing: 0.5px;
-  font-variant-numeric: tabular-nums;
-}
-
-.readout--large {
-  font-size: 16px;
-  font-weight: 500;
-}
-
-.readout--accent {
-  color: var(--accent-primary);
-}
-
-/* === STATUS DOT — vital signs indicator === */
-.status-dot {
-  width: 5px;
-  height: 5px;
+.panel-hdr__dot {
+  width: 4px; height: 4px;
   border-radius: 50%;
   flex-shrink: 0;
 }
 
-.status-dot--active {
-  background: var(--status-active);
-  box-shadow: 0 0 6px var(--status-active);
+.panel-hdr__title {
+  font-family: var(--font-mono);
+  font-size: 8px;
+  font-weight: 500;
+  letter-spacing: 1.8px;
+  text-transform: uppercase;
+  color: var(--text-sec);
 }
 
-.status-dot--warning {
-  background: var(--status-warning);
-  animation: pulse-glow 2s ease-in-out infinite;
+.panel-hdr__tag {
+  font-family: var(--font-mono);
+  font-size: 7px;
+  letter-spacing: 0.5px;
+  margin-left: auto;
+  padding: 1px 4px;
+  border-radius: 1px;
+  background: var(--cyan-dim);
+  color: var(--cyan);
 }
 
-.status-dot--critical {
-  background: var(--status-critical);
-  animation: pulse-glow 1s ease-in-out infinite;
+/* ── SCANLINE ANIMATION ── */
+@keyframes scanline {
+  0% { top: -2px; opacity: 0; }
+  10% { opacity: 0.6; }
+  90% { opacity: 0.6; }
+  100% { top: 100%; opacity: 0; }
 }
 
-.status-dot--nominal {
-  background: var(--status-nominal);
+@keyframes pulse { 0%,100%{opacity:0.4}50%{opacity:1} }
+@keyframes breathe { 0%,100%{opacity:0.6}50%{opacity:0.9} }
+
+@keyframes veto-flash {
+  0% { background: rgba(224, 64, 64, 0.15); }
+  100% { background: transparent; }
 }
 
-.status-dot--offline {
-  background: var(--status-offline);
+/* ── GRID OVERLAY — subtle calibration pattern ── */
+.grid-overlay {
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(var(--border-ghost) 1px, transparent 1px),
+    linear-gradient(90deg, var(--border-ghost) 1px, transparent 1px);
+  background-size: 40px 40px;
+  pointer-events: none;
+  z-index: 0;
+  opacity: 0.5;
 }

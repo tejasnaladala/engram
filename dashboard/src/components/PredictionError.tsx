@@ -4,89 +4,42 @@ interface PredictionErrorProps {
   history: { tick: number; error: number }[]
 }
 
-/** Prediction error signal monitor — styled as a clinical waveform display.
- *  Resembles real-time physiological monitoring (EKG/EEG chart recorder style)
- *  with amber/orange trace on dark clinical background. */
 export default function PredictionError({ history }: PredictionErrorProps) {
   const data = history.slice(-200)
-  const currentError = data.length > 0 ? data[data.length - 1].error : 0
+  const cur = data.length > 0 ? data[data.length - 1].error : 0
 
   return (
-    <div style={{
-      width: '100%',
-      height: 'calc(100% - 24px)',
-      padding: '4px 8px 4px 4px',
-      position: 'relative',
-    }}>
-      {/* Current value readout — top right, clinical numeric display */}
+    <div style={{ width: '100%', height: 'calc(100% - 22px)', padding: '2px 4px 2px 0', position: 'relative' }}>
+      {/* Live readout */}
       <div style={{
-        position: 'absolute',
-        top: '6px',
-        right: '12px',
-        zIndex: 2,
-        display: 'flex',
-        alignItems: 'baseline',
-        gap: '4px',
+        position: 'absolute', top: '4px', right: '8px', zIndex: 2,
+        display: 'flex', alignItems: 'baseline', gap: '3px',
       }}>
         <span style={{
-          fontFamily: 'var(--font-clinical)',
-          fontSize: '18px',
-          fontWeight: 500,
-          color: '#e8943a',
-          fontVariantNumeric: 'tabular-nums',
-          textShadow: '0 0 12px rgba(232, 148, 58, 0.3)',
-        }}>
-          {currentError.toFixed(3)}
-        </span>
-        <span style={{
-          fontFamily: 'var(--font-clinical)',
-          fontSize: '8px',
-          color: 'var(--text-tertiary)',
-          letterSpacing: '1px',
-        }}>
-          PE
-        </span>
+          fontFamily: 'var(--font-mono)', fontSize: '16px', fontWeight: 500,
+          color: '#f09030', fontVariantNumeric: 'tabular-nums',
+          textShadow: '0 0 10px rgba(240,144,48,0.25)',
+        }}>{cur.toFixed(3)}</span>
+        <span style={{ fontFamily: 'var(--font-mono)', fontSize: '7px', color: 'var(--text-dim)', letterSpacing: '0.5px' }}>PE</span>
       </div>
 
       <ResponsiveContainer width="100%" height="100%">
-        <AreaChart data={data} margin={{ top: 20, right: 8, left: -20, bottom: 0 }}>
+        <AreaChart data={data} margin={{ top: 16, right: 4, left: -24, bottom: 0 }}>
           <defs>
-            <linearGradient id="peGradient" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#e8943a" stopOpacity={0.20} />
-              <stop offset="60%" stopColor="#e8943a" stopOpacity={0.05} />
-              <stop offset="100%" stopColor="#e8943a" stopOpacity={0} />
+            <linearGradient id="peG" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#f09030" stopOpacity={0.18} />
+              <stop offset="70%" stopColor="#f09030" stopOpacity={0.02} />
+              <stop offset="100%" stopColor="#f09030" stopOpacity={0} />
             </linearGradient>
           </defs>
-
-          {/* Subtle grid — calibration marks */}
-          <XAxis
-            dataKey="tick"
-            tick={{ fontSize: 8, fill: '#4a5270', fontFamily: 'var(--font-clinical)' }}
-            tickLine={false}
-            axisLine={{ stroke: 'rgba(100, 120, 160, 0.08)' }}
-            interval="preserveStartEnd"
-          />
-          <YAxis
-            tick={{ fontSize: 8, fill: '#4a5270', fontFamily: 'var(--font-clinical)' }}
-            tickLine={false}
-            axisLine={{ stroke: 'rgba(100, 120, 160, 0.08)' }}
-            domain={[0, 'auto']}
-            width={35}
-          />
-
-          {/* Baseline reference — zero prediction error line */}
-          <ReferenceLine y={0} stroke="rgba(100, 120, 160, 0.1)" strokeDasharray="2 4" />
-
-          {/* Error trace — clinical waveform */}
-          <Area
-            type="monotone"
-            dataKey="error"
-            stroke="#e8943a"
-            strokeWidth={1.5}
-            fill="url(#peGradient)"
-            animationDuration={0}
-            dot={false}
-          />
+          <XAxis dataKey="tick" tick={{ fontSize: 7, fill: '#2a3450', fontFamily: 'var(--font-mono)' }}
+            tickLine={false} axisLine={{ stroke: 'rgba(80,120,180,0.06)' }} interval="preserveStartEnd" />
+          <YAxis tick={{ fontSize: 7, fill: '#2a3450', fontFamily: 'var(--font-mono)' }}
+            tickLine={false} axisLine={{ stroke: 'rgba(80,120,180,0.06)' }}
+            domain={[0, 'auto']} width={30} />
+          <ReferenceLine y={0} stroke="rgba(80,120,180,0.06)" strokeDasharray="2 4" />
+          <Area type="monotone" dataKey="error" stroke="#f09030" strokeWidth={1.5}
+            fill="url(#peG)" animationDuration={0} dot={false} />
         </AreaChart>
       </ResponsiveContainer>
     </div>
