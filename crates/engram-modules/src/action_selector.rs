@@ -2,6 +2,9 @@ use engram_core::{
     BrainModule, LIFParams, ModuleId, ModuleSnapshot, NeuronPopulation, ProposedAction,
     SpikeEvent, SimTime,
 };
+use rand::Rng;
+use rand::SeedableRng;
+use rand_chacha::ChaCha8Rng;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
@@ -29,7 +32,15 @@ pub struct ActionSelector {
     pub last_action: Option<ProposedAction>,
     /// Exploration temperature (higher = more random)
     pub temperature: f64,
+    /// Epsilon-greedy exploration rate (decays over time)
+    pub epsilon: f64,
     recent_spike_count: u32,
+    #[serde(skip, default = "default_action_rng")]
+    rng: ChaCha8Rng,
+}
+
+fn default_action_rng() -> ChaCha8Rng {
+    ChaCha8Rng::seed_from_u64(0)
 }
 
 impl ActionSelector {
@@ -53,7 +64,9 @@ impl ActionSelector {
             action_votes: vec![0; num_actions],
             last_action: None,
             temperature: 1.0,
+            epsilon: 0.3, // start with 30% random exploration
             recent_spike_count: 0,
+            rng: ChaCha8Rng::seed_from_u64(42),
         }
     }
 
@@ -81,14 +94,15 @@ impl ActionSelector {
         hash
     }
 
-    /// Select an action from population votes using softmax
-    fn select_action(&self, sim_time: SimTime) -> ProposedAction {
-        // Find the action with the most votes
-        let max_votes = *self.action_votes.iter().max().unwrap_or(&0);
-        if max_votes == 0 {
-            // No activity -- return random action
+    /// Select an action using epsilon-greedy with softmax voting
+    fn select_action(&mut self, sim_time: SimTime) -> ProposedAction {
+        // Epsilon-greedy: random exploration with probability epsilon
+        if self.rng.random::<f64>() < self.epsilon {
+            let action_id = self.rng.random_range(0..self.num_actions as u32);
+            // Decay epsilon over time (minimum 5% exploration)
+            self.epsilon = (self.epsilon * 0.9995).max(0.05);
             return ProposedAction {
-                action_id: 0,
+                action_id,
                 confidence: 0.0,
                 is_reflex: false,
                 timestamp: sim_time,
@@ -96,25 +110,41 @@ impl ActionSelector {
         }
 
         // Softmax over vote counts
-        let total: f64 = self
+        let max_votes = *self.action_votes.iter().max().unwrap_or(&0);
+        if max_votes == 0 {
+            // No votes at all: random
+            let action_id = self.rng.random_range(0..self.num_actions as u32);
+            return ProposedAction {
+                action_id,
+                confidence: 0.0,
+                is_reflex: false,
+                timestamp: sim_time,
+            };
+        }
+
+        // Weighted random selection (stochastic, not argmax)
+        let weights: Vec<f64> = self
             .action_votes
             .iter()
             .map(|&v| (v as f64 / self.temperature).exp())
-            .sum();
+            .collect();
+        let total: f64 = weights.iter().sum();
 
-        let mut best_action = 0;
-        let mut best_prob = 0.0f64;
-        for (i, &votes) in self.action_votes.iter().enumerate() {
-            let prob = (votes as f64 / self.temperature).exp() / total;
-            if prob > best_prob {
-                best_prob = prob;
-                best_action = i;
+        let mut r = self.rng.random::<f64>() * total;
+        let mut selected = 0;
+        for (i, &w) in weights.iter().enumerate() {
+            r -= w;
+            if r <= 0.0 {
+                selected = i;
+                break;
             }
         }
 
+        let confidence = weights[selected] / total;
+
         ProposedAction {
-            action_id: best_action as u32,
-            confidence: best_prob as f32,
+            action_id: selected as u32,
+            confidence: confidence as f32,
             is_reflex: false,
             timestamp: sim_time,
         }
