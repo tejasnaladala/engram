@@ -209,13 +209,15 @@ function agentStep(state: AgentState): AgentState {
   return s
 }
 
-// Reward curve chart
+// Reward curve chart -- fills available width
 function RewardCurve({ history }: { history: number[] }) {
   const ref = useRef<HTMLCanvasElement>(null)
+  const containerRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
-    const c = ref.current; if (!c) return
+    const c = ref.current; const container = containerRef.current; if (!c || !container) return
     const ctx = c.getContext('2d')!
-    const w = 240, h = 64
+    const rect = container.getBoundingClientRect()
+    const w = Math.max(200, rect.width), h = 70
     c.width = w*2; c.height = h*2; c.style.width = w+'px'; c.style.height = h+'px'
     ctx.scale(2,2)
     ctx.fillStyle = '#060810'; ctx.fillRect(0,0,w,h)
@@ -259,7 +261,9 @@ function RewardCurve({ history }: { history: number[] }) {
     ctx.fillText(mn.toFixed(1), 3, h-3)
     ctx.textAlign = 'right'; ctx.fillText(`ep ${history.length}`, w-3, h-3)
   }, [history])
-  return <canvas ref={ref} style={{ borderRadius:'2px', border:'1px solid rgba(48,80,120,0.08)' }} />
+  return <div ref={containerRef} style={{ width:'100%' }}>
+    <canvas ref={ref} style={{ borderRadius:'2px', border:'1px solid rgba(48,80,120,0.08)', display:'block' }} />
+  </div>
 }
 
 export default function LiveAgent() {
@@ -359,36 +363,41 @@ export default function LiveAgent() {
 
   return (
     <div style={{
-      display:'flex', gap:'16px', height:'100%',
-      padding:'8px 14px', alignItems:'center', justifyContent:'center',
+      display:'flex', gap:'12px', height:'100%',
+      padding:'6px 10px', alignItems:'stretch',
     }}>
-      {/* Grid */}
-      <div style={{ display:'flex', flexDirection:'column', gap:'4px', alignItems:'center', flexShrink:0 }}>
+      {/* Grid -- fills height */}
+      <div style={{ display:'flex', flexDirection:'column', gap:'3px', alignItems:'center', flexShrink:0, justifyContent:'center' }}>
         <canvas ref={gridRef} style={{ borderRadius:'3px', border:'1px solid rgba(48,80,120,0.08)' }} />
         <span style={{ fontFamily:'var(--mono)', fontSize:'8px', color:'var(--t-dim)', letterSpacing:'1.5px' }}>
           MAZE #{state.uniqueMazes}
         </span>
       </div>
 
-      {/* Stats */}
-      <div style={{ display:'flex', flexDirection:'column', gap:'8px', flex:1, minWidth:0 }}>
-        <div style={{ display:'flex', gap:'16px', flexWrap:'wrap' }}>
-          <Stat label="EPISODE" value={String(state.episode)} size={16} />
-          <Stat label="SUCCESS" value={`${(sRate*100).toFixed(0)}%`} size={16} color={statusColor} />
-          <Stat label="SOLVED" value={String(state.mazesSolved)} size={16} color="#508870" />
-          <Stat label="EPSILON" value={state.epsilon.toFixed(3)} size={12} />
-          <Stat label="BEST" value={state.bestReward.toFixed(1)} size={12} color="#3098a8" />
-          <Stat label="FEATURES" value={String(state.qTable.size)} size={12} />
+      {/* Stats -- fills ALL remaining width */}
+      <div style={{ display:'flex', flexDirection:'column', gap:'6px', flex:1, minWidth:0, justifyContent:'center' }}>
+        {/* Metrics row -- spread across full width */}
+        <div style={{ display:'flex', gap:'24px', flexWrap:'wrap' }}>
+          <Stat label="EPISODE" value={String(state.episode)} size={18} />
+          <Stat label="SUCCESS RATE" value={`${(sRate*100).toFixed(0)}%`} size={18} color={statusColor} />
+          <Stat label="MAZES SOLVED" value={String(state.mazesSolved)} size={18} color="#508870" />
+          <Stat label="EPSILON" value={state.epsilon.toFixed(3)} size={14} />
+          <Stat label="BEST REWARD" value={state.bestReward.toFixed(1)} size={14} color="#3098a8" />
+          <Stat label="Q-FEATURES" value={String(state.qTable.size)} size={14} />
+          <Stat label="STEP" value={String(state.step)} size={14} />
+          <Stat label="ACTION" value={ACT_SYMS[state.lastAction]} size={14} />
         </div>
 
-        <div>
-          <span style={{ fontFamily:'var(--mono)', fontSize:'8px', color:'var(--t-dim)', letterSpacing:'1.5px' }}>
-            REWARD CURVE
+        {/* Reward curve -- stretches to fill width */}
+        <div style={{ flex:1, minHeight:0, display:'flex', flexDirection:'column' }}>
+          <span style={{ fontFamily:'var(--mono)', fontSize:'8px', color:'var(--t-dim)', letterSpacing:'1.5px', marginBottom:'2px' }}>
+            REWARD CURVE (5-EPISODE MOVING AVERAGE)
           </span>
-          <div style={{ marginTop:'3px' }}><RewardCurve history={state.rewardHist} /></div>
+          <div style={{ flex:1 }}><RewardCurve history={state.rewardHist} /></div>
         </div>
 
-        <div style={{ display:'flex', alignItems:'center', gap:'8px' }}>
+        {/* Status bar */}
+        <div style={{ display:'flex', alignItems:'center', gap:'10px' }}>
           <div style={{
             width:'5px', height:'5px', borderRadius:'50%',
             background:statusColor, boxShadow:`0 0 6px ${statusColor}`,
@@ -397,14 +406,13 @@ export default function LiveAgent() {
           <span style={{ fontFamily:'var(--mono)', fontSize:'11px', color:statusColor, letterSpacing:'1.5px', fontWeight:500 }}>
             {status}
           </span>
-          <span style={{ fontFamily:'var(--mono)', fontSize:'9px', color:'var(--t-sec)' }}>
-            {ACT_SYMS[state.lastAction]} step {state.step}
+          <span style={{ fontFamily:'var(--mono)', fontSize:'8px', color:'var(--t-dim)', letterSpacing:'0.5px' }}>
+            RANDOM SOLVABLE MAZE EVERY EPISODE
+          </span>
+          <span style={{ fontFamily:'var(--mono)', fontSize:'8px', color:'var(--t-dim)', letterSpacing:'0.5px' }}>
+            FEATURE-BASED Q-LEARNING TRANSFERS ACROSS LAYOUTS
           </span>
         </div>
-
-        <span style={{ fontFamily:'var(--mono)', fontSize:'8px', color:'var(--t-dim)', letterSpacing:'0.5px' }}>
-          RANDOM SOLVABLE MAZE EVERY EPISODE. FEATURE-BASED Q-LEARNING TRANSFERS ACROSS LAYOUTS.
-        </span>
       </div>
     </div>
   )
