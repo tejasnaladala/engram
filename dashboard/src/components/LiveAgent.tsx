@@ -165,7 +165,9 @@ function stepRunner(
   r.epReward += reward
   r.step++
   r.path = [...r.path, [r.ax,r.ay]]
-  if (r.step > 400) done = true
+  // Single attempt per maze -- 150 steps max.
+  // Real-world scenario: robot enters a new building ONCE.
+  if (r.step > 150) done = true
   return { runner:r, reward, done }
 }
 
@@ -184,7 +186,7 @@ function dualStep(state: DualState): DualState {
   if (!s.engQTable.has(eNextKey)) s.engQTable.set(eNextKey, [0,0,0,0])
   const eNextQ = s.engQTable.get(eNextKey)!
   const eTarget = eResult.reward + (eResult.done?0:0.99*Math.max(...eNextQ))
-  const eNewQ = [...eQ]; eNewQ[eAction] += 0.2*(eTarget-eNewQ[eAction])
+  const eNewQ = [...eQ]; eNewQ[eAction] += 0.25*(eTarget-eNewQ[eAction])
   s.engQTable.set(eKey, eNewQ)
   s.eng = eResult.runner
 
@@ -234,8 +236,9 @@ function dualStep(state: DualState): DualState {
     s.engEpsilon = Math.max(0.08, s.engEpsilon*0.997)
     // Tabular Q-table is WIPED on new maze -- position entries are useless
     // in a different layout. This is the fundamental limitation of standard RL.
+    // The agent starts from ZERO knowledge every single maze.
     s.rndQTable = new Map()
-    s.rndEpsilon = 0.4  // resets exploration too
+    s.rndEpsilon = 0.5  // high exploration since it knows nothing
 
     // Save Q-table every 5 episodes
     if (s.episode % 5 === 0) { saveQTable(s.engQTable); s.isPersisted = true }
@@ -470,7 +473,7 @@ export default function LiveAgent() {
               </span>
             </div>
             <span style={{ fontSize:'7px', color:'var(--t-dim)' }}>
-              positions: {state.rndQTable.size} | RESETS EACH MAZE
+              positions: {state.rndQTable.size} | WIPED EACH MAZE | NO TRANSFER
             </span>
           </div>
         </div>
