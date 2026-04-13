@@ -15,11 +15,9 @@ function genDemo(tick: number): RuntimeSnapshot {
   const mids = ['Sensory','AssociativeMemory','PredictiveError','EpisodicMemory','ActionSelector','SafetyKernel']
   const ncounts = [128,256,64,64,128,32]
   const modules = MODULE_NAMES.map((_,i) => ({
-    module_id: mids[i],
-    neuron_count: ncounts[i],
+    module_id: mids[i], neuron_count: ncounts[i],
     active_count: Math.floor(Math.random() * [30,50,15,10,25,5][i]),
-    avg_potential: -65 + Math.random() * 10,
-    spike_rate: Math.random() * 500,
+    avg_potential: -65 + Math.random() * 10, spike_rate: Math.random() * 500,
     activity_level: 0.08 + Math.random() * 0.72 * (0.5 + 0.5 * Math.sin(t * 2 + i * 1.1)),
   }))
   const spikes: SpikeEvent[] = []
@@ -33,7 +31,6 @@ function genDemo(tick: number): RuntimeSnapshot {
     vetoed_action: { action_id: Math.floor(Math.random()*4), confidence: Math.random(), is_reflex: false },
     reason: Math.random()<0.5 ? 'HardConstraint: Forbidden trajectory' : { LearnedInhibition: { confidence: 0.85 } },
   }] : []
-
   return {
     metrics: { tick, sim_time: tick, ticks_per_second: 950+Math.random()*100,
       total_spikes: tick*27, total_vetoes: Math.floor(tick*0.02),
@@ -93,15 +90,20 @@ export default function App() {
   const totalActive = snapshot.modules.reduce((s,m)=>s+m.active_count, 0)
 
   /*
-     LAYOUT: Brain hero top-center, live agent below, diagnostics around
-     ┌──────────┬────────────────────────────┬──────────┐
-     │ REGIONS  │     BRAIN HOLOGRAM (3D)    │ PRED ERR │
-     ├──────────┼────────────────────────────┤──────────┤
-     │ SAFETY   │  LIVE LEARNING AGENT       │ MEMORY   │
-     │ LOG      │  (grid + reward curve)     │ MAP      │
-     ├──────────┼────────────────────────────┤──────────┤
-     │          │  SPIKE RASTER              │          │
-     └──────────┴────────────────────────────┴──────────┘
+     CENTERED LAYOUT -- brain hero top, live learning middle, diagnostics bottom
+     Everything centered and balanced, no cramped side panels
+
+     ┌────────────────────────────────────────────────────────┐
+     │                    METRICS BAR                         │
+     ├──────────┬──────────────────────────────┬──────────────┤
+     │ REGIONS  │     BRAIN HOLOGRAM (3D)      │   PRED ERR   │
+     │ activity │     (large, centered)        │   + MEMORY   │
+     ├──────────┴──────────────────────────────┴──────────────┤
+     │           LIVE LEARNING AGENT (full width)             │
+     │     grid + reward curve + metrics + status             │
+     ├────────────────────────────────────────────────────────┤
+     │        SPIKE RASTER (full width, compact)              │
+     └────────────────────────────────────────────────────────┘
   */
 
   return (
@@ -109,69 +111,71 @@ export default function App() {
       <div className="ambient-grid" />
       <MetricsBar metrics={snapshot.metrics} connected={connected} />
 
-      <div style={{
-        flex: 1, display: 'grid',
-        gridTemplateColumns: '180px 1fr 180px',
-        gridTemplateRows: '1.3fr 0.9fr 1fr',
-        gap: '2px', padding: '2px',
-        minHeight: 0, position: 'relative', zIndex: 1,
-      }}>
-        {/* ROW 1 */}
-        <div className="panel">
-          <PH title="REGIONS" tag="RT" />
-          <ModuleActivity modules={snapshot.modules} />
+      <div style={{ flex:1, display:'flex', flexDirection:'column', gap:'2px', padding:'2px', minHeight:0, position:'relative', zIndex:1 }}>
+
+        {/* ROW 1: Brain topology (hero) flanked by diagnostics */}
+        <div style={{ display:'grid', gridTemplateColumns:'160px 1fr 160px', gap:'2px', flex:'1.2' }}>
+          {/* Regions */}
+          <div className="panel">
+            <PH title="REGIONS" tag="RT" />
+            <ModuleActivity modules={snapshot.modules} />
+          </div>
+
+          {/* Brain -- THE HERO */}
+          <div className="panel">
+            <PH title="NEURAL TOPOLOGY" tag="3D" />
+            <BrainVisualization modules={snapshot.modules} />
+          </div>
+
+          {/* Right stack: PE + memory + safety */}
+          <div style={{ display:'flex', flexDirection:'column', gap:'2px' }}>
+            <div className="panel" style={{ flex:1 }}>
+              <PH title="PRED. ERROR" tag="PE" />
+              <PredictionError history={errorHistory} />
+            </div>
+            <div className="panel" style={{ flex:0.8 }}>
+              <PH title="MEMORY" tag="fMEM" />
+              <MemoryHeatMap formations={snapshot.memory_formations} tick={snapshot.metrics.tick} />
+            </div>
+          </div>
         </div>
 
-        <div className="panel">
-          <PH title="NEURAL TOPOLOGY" tag="3D" />
-          <BrainVisualization modules={snapshot.modules} />
-        </div>
-
-        <div className="panel">
-          <PH title="PREDICTION ERROR" tag="PE" />
-          <PredictionError history={errorHistory} />
-        </div>
-
-        {/* ROW 2: LIVE LEARNING AGENT */}
-        <div className="panel">
-          <PH title="SAFETY" tag={snapshot.metrics.total_vetoes > 0 ? `${snapshot.metrics.total_vetoes}` : 'OK'} />
-          <SafetyLog vetoes={vetoLog} />
-        </div>
-
-        <div className="panel" style={{ overflow: 'hidden' }}>
-          <PH title="LIVE LEARNING" tag="Q-LEARN" />
+        {/* ROW 2: Live learning agent -- FULL WIDTH, prominent */}
+        <div className="panel" style={{ flex:'1', minHeight:'180px' }}>
+          <PH title="LIVE LEARNING -- RANDOM MAZE GENERALIZATION" tag="Q-LEARN" />
           <LiveAgent />
         </div>
 
-        <div className="panel">
-          <PH title="MEMORY MAP" tag="fMEM" />
-          <MemoryHeatMap formations={snapshot.memory_formations} tick={snapshot.metrics.tick} />
-        </div>
-
-        {/* ROW 3: SPIKE RASTER (full width) */}
-        <div className="panel" style={{ gridColumn: '1 / -1' }}>
-          <PH title="NEURAL ACTIVITY" tag={`${totalActive} UNITS`} />
-          <SpikeRaster spikeHistory={spikeHistory} />
+        {/* ROW 3: Spike raster + safety -- FULL WIDTH, compact */}
+        <div style={{ display:'grid', gridTemplateColumns:'1fr 160px', gap:'2px', flex:'0.6' }}>
+          <div className="panel">
+            <PH title="NEURAL ACTIVITY" tag={`${totalActive} UNITS`} />
+            <SpikeRaster spikeHistory={spikeHistory} />
+          </div>
+          <div className="panel">
+            <PH title="SAFETY" tag={snapshot.metrics.total_vetoes > 0 ? `${snapshot.metrics.total_vetoes}` : 'OK'} />
+            <SafetyLog vetoes={vetoLog} />
+          </div>
         </div>
       </div>
 
       {/* Footer */}
       <div style={{
-        height: '18px', display: 'flex', alignItems: 'center',
-        padding: '0 10px', gap: '20px',
-        borderTop: '1px solid var(--b-ghost)',
-        background: 'var(--s0)', flexShrink: 0, zIndex: 1,
-        fontFamily: 'var(--mono)', fontSize: '7px', letterSpacing: '1.5px', color: 'var(--t-dim)',
+        height:'20px', display:'flex', alignItems:'center',
+        padding:'0 12px', gap:'20px',
+        borderTop:'1px solid var(--b-ghost)',
+        background:'var(--s0)', flexShrink:0, zIndex:1,
+        fontFamily:'var(--mono)', fontSize:'8px', letterSpacing:'1.5px', color:'var(--t-dim)',
       }}>
         <span>ENGRAM NCS v0.1.0</span>
-        <span style={{ color: 'var(--t-ghost)' }}>|</span>
+        <span style={{ color:'var(--t-ghost)' }}>|</span>
         <span>672 NEURONS</span>
-        <span style={{ color: 'var(--t-ghost)' }}>|</span>
+        <span style={{ color:'var(--t-ghost)' }}>|</span>
         <span>6 REGIONS</span>
-        <span style={{ color: 'var(--t-ghost)' }}>|</span>
-        <span>EVENT-DRIVEN</span>
-        <div style={{ flex: 1 }} />
-        <span>SIGNAL PIPELINE ACTIVE</span>
+        <span style={{ color:'var(--t-ghost)' }}>|</span>
+        <span>FEATURE-BASED GENERALIZATION</span>
+        <div style={{ flex:1 }} />
+        <span>RANDOM MAZE EVERY EPISODE</span>
         <div style={{ width:'4px', height:'4px', borderRadius:'50%', background:'var(--cyan)', boxShadow:'var(--cyan-glow)', animation:'pulse 3s ease-in-out infinite' }} />
       </div>
     </div>
