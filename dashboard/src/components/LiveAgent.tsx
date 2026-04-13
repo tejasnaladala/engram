@@ -1,36 +1,17 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 
 /*
-  Live learning agent -- random maze every episode.
-  Uses odd-sized grid so recursive backtracking produces valid mazes.
-  Feature-based Q-learning generalizes across unseen layouts.
+  SIDE-BY-SIDE: Feature Q-Learning vs Random Baseline
+  Same maze, same start, same goal. Watch one learn and one flail.
+  Q-table persists to localStorage -- reload page and learning continues.
 */
 
-const GRID = 9  // MUST be odd for recursive backtracking to work
+const GRID = 9
 const WALL = 1
 const HAZARD = 3
 const ACTIONS: [number,number][] = [[0,-1],[1,0],[0,1],[-1,0]]
 const ACT_SYMS = ['\u2191','\u2192','\u2193','\u2190']
 
-interface AgentState {
-  grid: number[][]
-  ax: number; ay: number
-  gx: number; gy: number
-  episode: number; step: number
-  epReward: number
-  rewardHist: number[]
-  successHist: boolean[]
-  path: [number,number][]
-  qTable: Map<string, number[]>
-  epsilon: number
-  lastAction: number
-  solved: boolean
-  bestReward: number
-  mazesSolved: number
-  uniqueMazes: number
-}
-
-// Seedable PRNG
 function mulberry32(seed: number) {
   return function() {
     seed |= 0; seed = seed + 0x6D2B79F5 | 0
@@ -40,413 +21,363 @@ function mulberry32(seed: number) {
   }
 }
 
-// Generate a valid random maze using recursive backtracking.
-// Grid MUST be odd-sized. Carves passages at odd coordinates.
-// Start (1,1) and goal (GRID-2, GRID-2) are always reachable
-// because the algorithm creates a spanning tree over ALL odd cells.
 function randomMaze(seed: number): number[][] {
   const g: number[][] = Array.from({length:GRID}, () => Array(GRID).fill(WALL))
   const rng = mulberry32(seed)
-
   function carve(x: number, y: number) {
     g[y][x] = 0
-    // Shuffle directions
     const dirs: [number,number][] = [[0,-2],[2,0],[0,2],[-2,0]]
-    for (let i = dirs.length - 1; i > 0; i--) {
-      const j = Math.floor(rng() * (i + 1))
-      ;[dirs[i], dirs[j]] = [dirs[j], dirs[i]]
-    }
+    for (let i = dirs.length-1; i > 0; i--) { const j = Math.floor(rng()*(i+1)); [dirs[i],dirs[j]] = [dirs[j],dirs[i]] }
     for (const [dx,dy] of dirs) {
       const nx = x+dx, ny = y+dy
-      // Check bounds: must stay within 1..GRID-2 (the carveable interior)
-      if (nx >= 1 && nx <= GRID-2 && ny >= 1 && ny <= GRID-2 && g[ny][nx] === WALL) {
-        // Knock out wall between current and neighbor
-        g[y + dy/2][x + dx/2] = 0
-        carve(nx, ny)
-      }
+      if (nx>=1 && nx<=GRID-2 && ny>=1 && ny<=GRID-2 && g[ny][nx]===WALL) { g[y+dy/2][x+dx/2] = 0; carve(nx,ny) }
     }
   }
-
-  carve(1, 1)
-
-  // Verify goal is open (it should be since GRID-2 is odd when GRID is odd)
-  // GRID=9: GRID-2=7, which is odd -- carving visits (1,1),(1,3),(1,5),(1,7),(3,1),...,(7,7)
-  // Goal at (7,7) is guaranteed reachable.
-
-  // Add 1-2 hazards in open cells (not start or goal)
+  carve(1,1)
   for (let i = 0; i < 2; i++) {
-    for (let attempt = 0; attempt < 30; attempt++) {
-      const hx = 1 + Math.floor(rng() * (GRID-2))
-      const hy = 1 + Math.floor(rng() * (GRID-2))
-      if (g[hy][hx] === 0 && !(hx===1&&hy===1) && !(hx===GRID-2&&hy===GRID-2)) {
-        g[hy][hx] = HAZARD; break
-      }
+    for (let a = 0; a < 30; a++) {
+      const hx = 1+Math.floor(rng()*(GRID-2)), hy = 1+Math.floor(rng()*(GRID-2))
+      if (g[hy][hx]===0 && !(hx===1&&hy===1) && !(hx===GRID-2&&hy===GRID-2)) { g[hy][hx] = HAZARD; break }
     }
   }
   return g
 }
 
-// Verify maze is solvable using BFS
-function isSolvable(grid: number[][], sx: number, sy: number, gx: number, gy: number): boolean {
+function isSolvable(grid: number[][]): boolean {
   const visited = new Set<string>()
-  const queue: [number,number][] = [[sx,sy]]
-  visited.add(`${sx},${sy}`)
+  const queue: [number,number][] = [[1,1]]
+  visited.add('1,1')
   while (queue.length > 0) {
     const [x,y] = queue.shift()!
-    if (x === gx && y === gy) return true
+    if (x===GRID-2 && y===GRID-2) return true
     for (const [dx,dy] of ACTIONS) {
-      const nx = x+dx, ny = y+dy
-      const key = `${nx},${ny}`
-      if (nx>=0 && nx<GRID && ny>=0 && ny<GRID && grid[ny][nx] !== WALL && !visited.has(key)) {
-        visited.add(key)
-        queue.push([nx,ny])
-      }
+      const nx=x+dx, ny=y+dy, k=`${nx},${ny}`
+      if (nx>=0&&nx<GRID&&ny>=0&&ny<GRID&&grid[ny][nx]!==WALL&&!visited.has(k)) { visited.add(k); queue.push([nx,ny]) }
     }
   }
   return false
 }
 
-// Feature-based state key for GENERALIZATION
-// Encodes: walls (4 dirs), corridor exits per neighbor (how many open
-// neighbors does each neighbor have -- distinguishes dead ends from
-// junctions), goal direction, distance bucket, hazard proximity.
 function featureKey(grid: number[][], ax: number, ay: number, gx: number, gy: number): string {
-  const isOpen = (x: number, y: number) =>
-    x>=0 && x<GRID && y>=0 && y<GRID && grid[y][x] !== WALL
-
-  // Walls in 4 directions
-  const w: number[] = ACTIONS.map(([dx,dy]) => isOpen(ax+dx, ay+dy) ? 0 : 1)
-
-  // For each open neighbor, count how many exits IT has (0-3)
-  // This distinguishes dead ends (1 exit = only back to us) from corridors/junctions
-  const exits: number[] = ACTIONS.map(([dx,dy]) => {
-    const nx = ax+dx, ny = ay+dy
-    if (!isOpen(nx,ny)) return 0
-    let count = 0
-    for (const [ddx,ddy] of ACTIONS) {
-      if (isOpen(nx+ddx, ny+ddy) && !(nx+ddx===ax && ny+ddy===ay)) count++
-    }
-    return Math.min(count, 3) // cap at 3
+  const isOpen = (x: number, y: number) => x>=0&&x<GRID&&y>=0&&y<GRID&&grid[y][x]!==WALL
+  const w = ACTIONS.map(([dx,dy]) => isOpen(ax+dx,ay+dy)?0:1)
+  const exits = ACTIONS.map(([dx,dy]) => {
+    const nx=ax+dx, ny=ay+dy; if (!isOpen(nx,ny)) return 0
+    let c = 0; for (const [ddx,ddy] of ACTIONS) { if (isOpen(nx+ddx,ny+ddy)&&!(nx+ddx===ax&&ny+ddy===ay)) c++ }
+    return Math.min(c,3)
   })
-
-  // Goal direction (-1, 0, 1 for x and y)
-  const gdx = Math.sign(gx - ax)
-  const gdy = Math.sign(gy - ay)
-
-  // Distance bucket (0=far, 1=medium, 2=close)
-  const dist = Math.abs(gx-ax) + Math.abs(gy-ay)
-  const distBucket = dist <= 3 ? 2 : dist <= 7 ? 1 : 0
-
-  // Hazard in any neighbor
-  const hazNear = ACTIONS.some(([dx,dy]) => {
-    const nx = ax+dx, ny = ay+dy
-    return nx>=0 && nx<GRID && ny>=0 && ny<GRID && grid[ny][nx]===HAZARD
-  }) ? 1 : 0
-
-  return `${w.join('')}_${exits.join('')}_${gdx}_${gdy}_${distBucket}_${hazNear}`
+  const gdx = Math.sign(gx-ax), gdy = Math.sign(gy-ay)
+  const dist = Math.abs(gx-ax)+Math.abs(gy-ay)
+  const db = dist<=3?2:dist<=7?1:0
+  const hz = ACTIONS.some(([dx,dy])=>{const nx=ax+dx,ny=ay+dy;return nx>=0&&nx<GRID&&ny>=0&&ny<GRID&&grid[ny][nx]===HAZARD})?1:0
+  return `${w.join('')}_${exits.join('')}_${gdx}_${gdy}_${db}_${hz}`
 }
 
-function createAgent(): AgentState {
+// Load persisted Q-table from localStorage
+function loadQTable(): Map<string,number[]> {
+  try {
+    const raw = localStorage.getItem('engram_qtable')
+    if (raw) {
+      const entries: [string,number[]][] = JSON.parse(raw)
+      return new Map(entries)
+    }
+  } catch {}
+  return new Map()
+}
+
+function saveQTable(qt: Map<string,number[]>) {
+  try {
+    const entries = Array.from(qt.entries())
+    localStorage.setItem('engram_qtable', JSON.stringify(entries))
+    localStorage.setItem('engram_stats', JSON.stringify({
+      saved: Date.now(),
+      features: qt.size,
+    }))
+  } catch {}
+}
+
+interface RunnerState {
+  ax: number; ay: number
+  step: number; epReward: number
+  path: [number,number][]
+  solved: boolean
+}
+
+interface DualState {
+  grid: number[][]
+  mazeSeed: number
+  episode: number
+  // Engram agent
+  eng: RunnerState
+  engQTable: Map<string,number[]>
+  engEpsilon: number
+  engRewards: number[]
+  engSuccesses: boolean[]
+  engSolved: number
+  // Random baseline
+  rnd: RunnerState
+  rndRewards: number[]
+  rndSuccesses: boolean[]
+  rndSolved: number
+  // Shared
+  totalMazes: number
+  isPersisted: boolean
+}
+
+function newRunner(): RunnerState {
+  return { ax:1, ay:1, step:0, epReward:0, path:[[1,1]], solved:false }
+}
+
+function createDual(): DualState {
+  const qt = loadQTable()
   let grid = randomMaze(42)
-  // Guarantee solvability
-  while (!isSolvable(grid, 1, 1, GRID-2, GRID-2)) {
-    grid = randomMaze(Math.floor(Math.random() * 1e9))
-  }
+  while (!isSolvable(grid)) grid = randomMaze(Math.floor(Math.random()*1e9))
   return {
-    grid,
-    ax:1, ay:1, gx:GRID-2, gy:GRID-2,
-    episode:0, step:0, epReward:0,
-    rewardHist:[], successHist:[],
-    path:[[1,1]],
-    qTable: new Map(),
-    epsilon:0.4, lastAction:0,
-    solved:false, bestReward:-999,
-    mazesSolved:0, uniqueMazes:1,
+    grid, mazeSeed:42, episode:0,
+    eng: newRunner(), engQTable: qt, engEpsilon: qt.size > 0 ? 0.15 : 0.4,
+    engRewards:[], engSuccesses:[], engSolved:0,
+    rnd: newRunner(), rndRewards:[], rndSuccesses:[], rndSolved:0,
+    totalMazes:1, isPersisted: qt.size > 0,
   }
 }
 
-function getQ(st: AgentState, key: string): number[] {
-  if (!st.qTable.has(key)) st.qTable.set(key, [0,0,0,0])
-  return st.qTable.get(key)!
-}
-
-function agentStep(state: AgentState): AgentState {
-  const s = {...state}
-  const key = featureKey(s.grid, s.ax, s.ay, s.gx, s.gy)
-  const qvals = getQ(s, key)
-
-  const action = Math.random() < s.epsilon
-    ? Math.floor(Math.random()*4)
-    : qvals.indexOf(Math.max(...qvals))
-  s.lastAction = action
-
+function stepRunner(
+  s: RunnerState, grid: number[][], action: number
+): { runner: RunnerState; reward: number; done: boolean } {
+  const r = {...s}
   const [dx,dy] = ACTIONS[action]
-  const nx = s.ax+dx, ny = s.ay+dy
+  const nx=r.ax+dx, ny=r.ay+dy
   let reward = -0.02
   let done = false
+  const prevDist = Math.abs(r.ax-(GRID-2))+Math.abs(r.ay-(GRID-2))
 
-  const prevDist = Math.abs(s.ax - s.gx) + Math.abs(s.ay - s.gy)
-  if (nx>=0 && nx<GRID && ny>=0 && ny<GRID && s.grid[ny][nx] !== WALL) {
-    s.ax = nx; s.ay = ny
-    const newDist = Math.abs(s.ax - s.gx) + Math.abs(s.ay - s.gy)
-    // Distance-based shaping: reward getting closer, penalize going further
-    if (newDist < prevDist) reward += 0.05
-    else if (newDist > prevDist) reward -= 0.03
-    if (s.grid[ny][nx] === HAZARD) reward = -1.0
-    if (nx===s.gx && ny===s.gy) { reward = 10.0; done = true; s.solved = true; s.mazesSolved++ }
-  } else { reward = -0.3 }
+  if (nx>=0&&nx<GRID&&ny>=0&&ny<GRID&&grid[ny][nx]!==WALL) {
+    r.ax=nx; r.ay=ny
+    const newDist = Math.abs(r.ax-(GRID-2))+Math.abs(r.ay-(GRID-2))
+    if (newDist<prevDist) reward+=0.05; else if(newDist>prevDist) reward-=0.03
+    if (grid[ny][nx]===HAZARD) reward=-1.0
+    if (nx===GRID-2&&ny===GRID-2) { reward=10.0; done=true; r.solved=true }
+  } else { reward=-0.3 }
 
-  s.epReward += reward
-  s.step++
-  s.path = [...s.path, [s.ax, s.ay]]
+  r.epReward += reward
+  r.step++
+  r.path = [...r.path, [r.ax,r.ay]]
+  if (r.step > 400) done = true
+  return { runner:r, reward, done }
+}
 
-  // Q-learning update
-  const nextKey = featureKey(s.grid, s.ax, s.ay, s.gx, s.gy)
-  const nextQ = getQ(s, nextKey)
-  const target = reward + (done ? 0 : 0.99 * Math.max(...nextQ))
-  const newQ = [...qvals]
-  newQ[action] += 0.2 * (target - newQ[action])
-  s.qTable.set(key, newQ)
+function dualStep(state: DualState): DualState {
+  const s = {...state}
 
-  // Episode end -- generous timeout so agent has time to explore
-  if (done || s.step > 500) {
-    s.rewardHist = [...s.rewardHist, s.epReward]
-    s.successHist = [...s.successHist, done]
-    if (s.epReward > s.bestReward) s.bestReward = s.epReward
+  // Engram: feature Q-learning
+  const eKey = featureKey(s.grid, s.eng.ax, s.eng.ay, GRID-2, GRID-2)
+  if (!s.engQTable.has(eKey)) s.engQTable.set(eKey, [0,0,0,0])
+  const eQ = s.engQTable.get(eKey)!
+  const eAction = Math.random()<s.engEpsilon ? Math.floor(Math.random()*4) : eQ.indexOf(Math.max(...eQ))
+  const eResult = stepRunner(s.eng, s.grid, eAction)
+
+  // Q-update for Engram
+  const eNextKey = featureKey(s.grid, eResult.runner.ax, eResult.runner.ay, GRID-2, GRID-2)
+  if (!s.engQTable.has(eNextKey)) s.engQTable.set(eNextKey, [0,0,0,0])
+  const eNextQ = s.engQTable.get(eNextKey)!
+  const eTarget = eResult.reward + (eResult.done?0:0.99*Math.max(...eNextQ))
+  const eNewQ = [...eQ]; eNewQ[eAction] += 0.2*(eTarget-eNewQ[eAction])
+  s.engQTable.set(eKey, eNewQ)
+  s.eng = eResult.runner
+
+  // Random: pure random actions
+  const rAction = Math.floor(Math.random()*4)
+  const rResult = stepRunner(s.rnd, s.grid, rAction)
+  s.rnd = rResult.runner
+
+  // Check episode end for both
+  const engDone = eResult.done
+  const rndDone = rResult.done
+
+  // If either finishes, end the episode for both (same maze = same episode boundary)
+  if (engDone || rndDone || s.eng.step > 400 || s.rnd.step > 400) {
+    s.engRewards = [...s.engRewards, s.eng.epReward]
+    s.engSuccesses = [...s.engSuccesses, s.eng.solved]
+    if (s.eng.solved) s.engSolved++
+
+    s.rndRewards = [...s.rndRewards, s.rnd.epReward]
+    s.rndSuccesses = [...s.rndSuccesses, s.rnd.solved]
+    if (s.rnd.solved) s.rndSolved++
+
     s.episode++
-    s.epReward = 0; s.step = 0
-    s.ax = 1; s.ay = 1
-    // New random solvable maze every episode
-    let newGrid = randomMaze(Date.now() + s.episode * 7919)
-    let attempts = 0
-    while (!isSolvable(newGrid, 1, 1, GRID-2, GRID-2) && attempts < 10) {
-      newGrid = randomMaze(Date.now() + s.episode * 7919 + attempts * 13)
-      attempts++
-    }
+    s.eng = newRunner()
+    s.rnd = newRunner()
+
+    // New maze
+    const seed = Date.now()+s.episode*7919
+    let newGrid = randomMaze(seed)
+    let att = 0
+    while (!isSolvable(newGrid)&&att<10) { newGrid = randomMaze(seed+att*13); att++ }
     s.grid = newGrid
-    s.uniqueMazes++
-    s.path = [[1,1]]
-    s.epsilon = Math.max(0.08, s.epsilon * 0.997)
-    s.solved = false
+    s.totalMazes++
+    s.engEpsilon = Math.max(0.08, s.engEpsilon*0.997)
+
+    // Save Q-table every 5 episodes
+    if (s.episode % 5 === 0) { saveQTable(s.engQTable); s.isPersisted = true }
   }
 
   return s
 }
 
-// Reward curve chart -- fills available width
-function RewardCurve({ history }: { history: number[] }) {
+// Render a maze with agent
+function MazeCanvas({ grid, ax, ay, path, solved, label, color, qTable }:
+  { grid:number[][]; ax:number; ay:number; path:[number,number][]; solved:boolean; label:string; color:string; qTable?:Map<string,number[]> }
+) {
   const ref = useRef<HTMLCanvasElement>(null)
-  const containerRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
-    const c = ref.current; const container = containerRef.current; if (!c || !container) return
+    const c = ref.current; if (!c) return
     const ctx = c.getContext('2d')!
-    const rect = container.getBoundingClientRect()
-    const w = Math.max(200, rect.width), h = 70
-    c.width = w*2; c.height = h*2; c.style.width = w+'px'; c.style.height = h+'px'
+    const sz = 160, cell = sz/GRID
+    c.width=sz*2; c.height=sz*2; c.style.width=sz+'px'; c.style.height=sz+'px'
     ctx.scale(2,2)
-    ctx.fillStyle = '#060810'; ctx.fillRect(0,0,w,h)
-    if (history.length < 2) return
+    ctx.fillStyle='#060810'; ctx.fillRect(0,0,sz,sz)
 
-    const win = 5
-    const avg: number[] = []
-    for (let i = 0; i < history.length; i++) {
-      const start = Math.max(0, i-win+1)
-      const sl = history.slice(start, i+1)
-      avg.push(sl.reduce((a,b)=>a+b,0)/sl.length)
-    }
-    const mn = Math.min(...avg), mx = Math.max(...avg), rng = mx-mn||1
-
-    // Area fill
-    ctx.fillStyle = 'rgba(48,152,168,0.06)'
-    ctx.beginPath(); ctx.moveTo(0, h)
-    for (let i = 0; i < avg.length; i++) {
-      ctx.lineTo((i/(avg.length-1))*w, h - ((avg[i]-mn)/rng)*(h-12) - 6)
-    }
-    ctx.lineTo(w, h); ctx.closePath(); ctx.fill()
-
-    // Line
-    ctx.strokeStyle = '#3098a8'; ctx.lineWidth = 1.5; ctx.beginPath()
-    for (let i = 0; i < avg.length; i++) {
-      const x = (i/(avg.length-1))*w, y = h - ((avg[i]-mn)/rng)*(h-12) - 6
-      if (i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y)
-    }
-    ctx.stroke()
-
-    // Zero reference
-    if (mn < 0 && mx > 0) {
-      const zy = h - ((0-mn)/rng)*(h-12) - 6
-      ctx.strokeStyle = 'rgba(80,136,112,0.2)'; ctx.lineWidth = 0.5
-      ctx.setLineDash([2,3]); ctx.beginPath(); ctx.moveTo(0,zy); ctx.lineTo(w,zy); ctx.stroke(); ctx.setLineDash([])
+    for (let y=0;y<GRID;y++) for (let x=0;x<GRID;x++) {
+      const v = grid[y][x]
+      ctx.fillStyle = v===WALL?'#121828':v===HAZARD?'#1c1218':'#0b0e18'
+      ctx.fillRect(x*cell+0.3,y*cell+0.3,cell-0.6,cell-0.6)
+      if (v===HAZARD) { ctx.fillStyle='#906060'; ctx.font=`bold ${cell*0.5}px sans-serif`; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText('!',x*cell+cell/2,y*cell+cell/2+1) }
     }
 
-    // Labels
-    ctx.fillStyle = '#3a4868'; ctx.font = '9px "JetBrains Mono", monospace'
-    ctx.textAlign = 'left'; ctx.fillText(mx.toFixed(1), 3, 11)
-    ctx.fillText(mn.toFixed(1), 3, h-3)
-    ctx.textAlign = 'right'; ctx.fillText(`ep ${history.length}`, w-3, h-3)
-  }, [history])
-  return <div ref={containerRef} style={{ width:'100%' }}>
-    <canvas ref={ref} style={{ borderRadius:'2px', border:'1px solid rgba(48,80,120,0.08)', display:'block' }} />
-  </div>
-}
-
-export default function LiveAgent() {
-  const [state, setState] = useState<AgentState>(createAgent)
-  const gridRef = useRef<HTMLCanvasElement>(null)
-
-  // Slower stepping so you can watch the agent navigate
-  // 40ms = 25 steps/sec -- fast enough to learn, slow enough to see
-  useEffect(() => {
-    const interval = setInterval(() => setState(prev => agentStep(prev)), 40)
-    return () => clearInterval(interval)
-  }, [])
-
-  // Render grid
-  useEffect(() => {
-    const c = gridRef.current; if (!c) return
-    const ctx = c.getContext('2d')!
-    const sz = 200, cell = sz/GRID
-    c.width = sz*2; c.height = sz*2; c.style.width = sz+'px'; c.style.height = sz+'px'
-    ctx.scale(2,2)
-    ctx.fillStyle = '#060810'; ctx.fillRect(0,0,sz,sz)
-
-    for (let y = 0; y < GRID; y++) for (let x = 0; x < GRID; x++) {
-      const v = state.grid[y][x]
-      ctx.fillStyle = v===WALL ? '#121828' : v===HAZARD ? '#1c1218' : '#0b0e18'
-      ctx.fillRect(x*cell+0.3, y*cell+0.3, cell-0.6, cell-0.6)
-      if (v===HAZARD) {
-        ctx.fillStyle = '#906060'; ctx.font = `bold ${cell*0.5}px sans-serif`
-        ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
-        ctx.fillText('!', x*cell+cell/2, y*cell+cell/2+1)
+    // Q-arrows for Engram only
+    if (qTable) {
+      ctx.globalAlpha = 0.3
+      for (let y=0;y<GRID;y++) for (let x=0;x<GRID;x++) {
+        if (grid[y][x]!==0) continue
+        const fk = featureKey(grid,x,y,GRID-2,GRID-2)
+        if (!qTable.has(fk)) continue
+        const qv = qTable.get(fk)!
+        if (Math.max(...qv)<0.01) continue
+        const best = qv.indexOf(Math.max(...qv))
+        const [adx,ady] = ACTIONS[best]
+        const cx=x*cell+cell/2, cy=y*cell+cell/2, al=cell*0.3
+        ctx.strokeStyle=color; ctx.lineWidth=1
+        ctx.beginPath(); ctx.moveTo(cx-adx*al*0.5,cy-ady*al*0.5); ctx.lineTo(cx+adx*al*0.5,cy+ady*al*0.5); ctx.stroke()
+        ctx.beginPath(); ctx.arc(cx+adx*al*0.5,cy+ady*al*0.5,1.2,0,Math.PI*2); ctx.fillStyle=color; ctx.fill()
       }
+      ctx.globalAlpha = 1
     }
 
-    // Path trace
-    for (const [px,py] of state.path.slice(0,-1)) {
-      ctx.fillStyle = 'rgba(48,152,168,0.08)'
-      ctx.fillRect(px*cell+cell*0.2, py*cell+cell*0.2, cell*0.6, cell*0.6)
-    }
+    // Path
+    for (const [px,py] of path.slice(0,-1)) { ctx.fillStyle=`${color}12`; ctx.fillRect(px*cell+cell*0.2,py*cell+cell*0.2,cell*0.6,cell*0.6) }
 
     // Goal
-    ctx.fillStyle = '#508870'; ctx.shadowColor = '#508870'; ctx.shadowBlur = 6
-    ctx.beginPath(); ctx.arc(state.gx*cell+cell/2, state.gy*cell+cell/2, cell*0.3, 0, Math.PI*2); ctx.fill()
-    ctx.shadowBlur = 0
-    // Goal label
-    ctx.fillStyle = '#0a0e16'; ctx.font = `bold ${cell*0.35}px sans-serif`
-    ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
-    ctx.fillText('G', state.gx*cell+cell/2, state.gy*cell+cell/2+0.5)
+    ctx.fillStyle='#508870'; ctx.shadowColor='#508870'; ctx.shadowBlur=4
+    ctx.beginPath(); ctx.arc((GRID-2)*cell+cell/2,(GRID-2)*cell+cell/2,cell*0.28,0,Math.PI*2); ctx.fill()
+    ctx.shadowBlur=0; ctx.fillStyle='#0a0e16'; ctx.font=`bold ${cell*0.3}px sans-serif`; ctx.textAlign='center'; ctx.textBaseline='middle'
+    ctx.fillText('G',(GRID-2)*cell+cell/2,(GRID-2)*cell+cell/2+0.5)
 
     // Agent
-    ctx.fillStyle = state.solved ? '#508870' : '#3098a8'
-    ctx.shadowColor = state.solved ? '#508870' : '#3098a8'; ctx.shadowBlur = 8
-    ctx.beginPath(); ctx.arc(state.ax*cell+cell/2, state.ay*cell+cell/2, cell*0.25, 0, Math.PI*2); ctx.fill()
-    ctx.shadowBlur = 0
-    // Agent label
-    ctx.fillStyle = '#0a0e16'; ctx.font = `bold ${cell*0.35}px sans-serif`
-    ctx.fillText('A', state.ax*cell+cell/2, state.ay*cell+cell/2+0.5)
+    ctx.fillStyle=solved?'#508870':color; ctx.shadowColor=solved?'#508870':color; ctx.shadowBlur=6
+    ctx.beginPath(); ctx.arc(ax*cell+cell/2,ay*cell+cell/2,cell*0.22,0,Math.PI*2); ctx.fill()
+    ctx.shadowBlur=0
 
-    // Show learned Q-values as arrows on visited open cells
-    // This makes learning VISIBLE -- you see the policy forming
-    ctx.globalAlpha = 0.25
-    for (let y = 0; y < GRID; y++) for (let x = 0; x < GRID; x++) {
-      if (state.grid[y][x] !== 0) continue
-      const fk = featureKey(state.grid, x, y, state.gx, state.gy)
-      if (!state.qTable.has(fk)) continue
-      const qv = state.qTable.get(fk)!
-      const best = qv.indexOf(Math.max(...qv))
-      if (Math.max(...qv) < 0.01) continue
-      const cx = x*cell+cell/2, cy = y*cell+cell/2
-      const arrowLen = cell * 0.3
-      const [adx, ady] = ACTIONS[best]
-      ctx.strokeStyle = '#3098a8'
-      ctx.lineWidth = 1.2
-      ctx.beginPath()
-      ctx.moveTo(cx - adx*arrowLen*0.5, cy - ady*arrowLen*0.5)
-      ctx.lineTo(cx + adx*arrowLen*0.5, cy + ady*arrowLen*0.5)
-      ctx.stroke()
-      // Arrowhead
-      ctx.beginPath()
-      ctx.arc(cx + adx*arrowLen*0.5, cy + ady*arrowLen*0.5, 1.5, 0, Math.PI*2)
-      ctx.fillStyle = '#3098a8'
-      ctx.fill()
-    }
-    ctx.globalAlpha = 1
-
-    // Grid lines
-    ctx.strokeStyle = 'rgba(48,80,120,0.04)'; ctx.lineWidth = 0.3
-    for (let i = 0; i <= GRID; i++) {
-      ctx.beginPath(); ctx.moveTo(i*cell,0); ctx.lineTo(i*cell,sz); ctx.stroke()
-      ctx.beginPath(); ctx.moveTo(0,i*cell); ctx.lineTo(sz,i*cell); ctx.stroke()
-    }
-  }, [state])
-
-  const r20 = state.successHist.slice(-20)
-  const sRate = r20.length > 0 ? r20.filter(Boolean).length / r20.length : 0
-  const status = sRate > 0.4 ? 'CONVERGING' : sRate > 0.1 ? 'LEARNING' : 'EXPLORING'
-  const statusColor = sRate > 0.4 ? '#508870' : sRate > 0.1 ? '#907858' : '#5098a8'
+    // Grid
+    ctx.strokeStyle='rgba(48,80,120,0.04)'; ctx.lineWidth=0.3
+    for (let i=0;i<=GRID;i++) { ctx.beginPath();ctx.moveTo(i*cell,0);ctx.lineTo(i*cell,sz);ctx.stroke();ctx.beginPath();ctx.moveTo(0,i*cell);ctx.lineTo(sz,i*cell);ctx.stroke() }
+  }, [grid,ax,ay,path,solved,qTable])
 
   return (
-    <div style={{
-      display:'flex', gap:'12px', height:'100%',
-      padding:'6px 10px', alignItems:'stretch',
-    }}>
-      {/* Grid -- fills height */}
-      <div style={{ display:'flex', flexDirection:'column', gap:'3px', alignItems:'center', flexShrink:0, justifyContent:'center' }}>
-        <canvas ref={gridRef} style={{ borderRadius:'3px', border:'1px solid rgba(48,80,120,0.08)' }} />
-        <span style={{ fontFamily:'var(--mono)', fontSize:'8px', color:'var(--t-dim)', letterSpacing:'1.5px' }}>
-          MAZE #{state.uniqueMazes}
-        </span>
-      </div>
-
-      {/* Stats -- fills ALL remaining width */}
-      <div style={{ display:'flex', flexDirection:'column', gap:'6px', flex:1, minWidth:0, justifyContent:'center' }}>
-        {/* Metrics row -- spread across full width */}
-        <div style={{ display:'flex', gap:'24px', flexWrap:'wrap' }}>
-          <Stat label="EPISODE" value={String(state.episode)} size={18} />
-          <Stat label="SUCCESS RATE" value={`${(sRate*100).toFixed(0)}%`} size={18} color={statusColor} />
-          <Stat label="MAZES SOLVED" value={String(state.mazesSolved)} size={18} color="#508870" />
-          <Stat label="EPSILON" value={state.epsilon.toFixed(3)} size={14} />
-          <Stat label="BEST REWARD" value={state.bestReward.toFixed(1)} size={14} color="#3098a8" />
-          <Stat label="Q-FEATURES" value={String(state.qTable.size)} size={14} />
-          <Stat label="STEP" value={String(state.step)} size={14} />
-          <Stat label="ACTION" value={ACT_SYMS[state.lastAction]} size={14} />
-        </div>
-
-        {/* Reward curve -- stretches to fill width */}
-        <div style={{ flex:1, minHeight:0, display:'flex', flexDirection:'column' }}>
-          <span style={{ fontFamily:'var(--mono)', fontSize:'8px', color:'var(--t-dim)', letterSpacing:'1.5px', marginBottom:'2px' }}>
-            REWARD CURVE (5-EPISODE MOVING AVERAGE)
-          </span>
-          <div style={{ flex:1 }}><RewardCurve history={state.rewardHist} /></div>
-        </div>
-
-        {/* Status bar */}
-        <div style={{ display:'flex', alignItems:'center', gap:'10px' }}>
-          <div style={{
-            width:'5px', height:'5px', borderRadius:'50%',
-            background:statusColor, boxShadow:`0 0 6px ${statusColor}`,
-            animation:'pulse 2s ease-in-out infinite',
-          }} />
-          <span style={{ fontFamily:'var(--mono)', fontSize:'11px', color:statusColor, letterSpacing:'1.5px', fontWeight:500 }}>
-            {status}
-          </span>
-          <span style={{ fontFamily:'var(--mono)', fontSize:'8px', color:'var(--t-dim)', letterSpacing:'0.5px' }}>
-            RANDOM SOLVABLE MAZE EVERY EPISODE
-          </span>
-          <span style={{ fontFamily:'var(--mono)', fontSize:'8px', color:'var(--t-dim)', letterSpacing:'0.5px' }}>
-            FEATURE-BASED Q-LEARNING TRANSFERS ACROSS LAYOUTS
-          </span>
-        </div>
-      </div>
+    <div style={{ display:'flex', flexDirection:'column', gap:'2px', alignItems:'center' }}>
+      <canvas ref={ref} style={{ borderRadius:'3px', border:`1px solid ${color}15` }} />
+      <span style={{ fontFamily:'var(--mono)', fontSize:'9px', color, letterSpacing:'1px', fontWeight:600 }}>{label}</span>
     </div>
   )
 }
 
-function Stat({ label, value, color, size }: { label:string; value:string; color?:string; size?:number }) {
+// Comparison bar
+function CompBar({ engVal, rndVal, label, suffix }: { engVal:number; rndVal:number; label:string; suffix?:string }) {
+  const max = Math.max(Math.abs(engVal), Math.abs(rndVal), 0.01)
+  const engW = Math.abs(engVal)/max*100
+  const rndW = Math.abs(rndVal)/max*100
+  const engWins = engVal > rndVal
   return (
-    <div style={{ display:'flex', flexDirection:'column', gap:'1px' }}>
-      <span style={{ fontFamily:'var(--mono)', fontSize:'7px', color:'var(--t-dim)', letterSpacing:'1px' }}>{label}</span>
-      <span style={{ fontFamily:'var(--mono)', fontSize:`${size||12}px`, color:color||'var(--t-max)', fontWeight:500, fontVariantNumeric:'tabular-nums' }}>{value}</span>
+    <div style={{ display:'flex', alignItems:'center', gap:'6px', fontFamily:'var(--mono)', fontSize:'8px' }}>
+      <span style={{ width:'60px', textAlign:'right', color:'var(--t-dim)', letterSpacing:'0.5px' }}>{label}</span>
+      <div style={{ flex:1, height:'8px', background:'var(--s4)', borderRadius:'2px', display:'flex', gap:'1px', overflow:'hidden' }}>
+        <div style={{ width:`${engW}%`, background: engWins?'#3098a8':'#3098a860', borderRadius:'2px 0 0 2px', transition:'width 0.3s' }} />
+        <div style={{ width:`${rndW}%`, background: !engWins?'#906060':'#90606060', borderRadius:'0 2px 2px 0', transition:'width 0.3s' }} />
+      </div>
+      <span style={{ width:'40px', color:'#3098a8', fontWeight:500 }}>{engVal.toFixed(0)}{suffix||''}</span>
+      <span style={{ width:'5px', color:'var(--t-ghost)' }}>|</span>
+      <span style={{ width:'40px', color:'#906060' }}>{rndVal.toFixed(0)}{suffix||''}</span>
+    </div>
+  )
+}
+
+export default function LiveAgent() {
+  const [state, setState] = useState<DualState>(createDual)
+
+  useEffect(() => {
+    const interval = setInterval(() => setState(prev => dualStep(prev)), 30)
+    return () => clearInterval(interval)
+  }, [])
+
+  const engR20 = state.engSuccesses.slice(-20)
+  const rndR20 = state.rndSuccesses.slice(-20)
+  const engRate = engR20.length>0 ? engR20.filter(Boolean).length/engR20.length : 0
+  const rndRate = rndR20.length>0 ? rndR20.filter(Boolean).length/rndR20.length : 0
+  const engAvgR = state.engRewards.length>0 ? state.engRewards.slice(-20).reduce((a,b)=>a+b,0)/Math.min(20,state.engRewards.length) : 0
+  const rndAvgR = state.rndRewards.length>0 ? state.rndRewards.slice(-20).reduce((a,b)=>a+b,0)/Math.min(20,state.rndRewards.length) : 0
+
+  return (
+    <div style={{ display:'flex', gap:'12px', height:'100%', padding:'6px 10px', alignItems:'center' }}>
+      {/* Left maze: Engram */}
+      <MazeCanvas grid={state.grid} ax={state.eng.ax} ay={state.eng.ay} path={state.eng.path}
+        solved={state.eng.solved} label="ENGRAM (FEATURE Q-LEARN)" color="#3098a8" qTable={state.engQTable} />
+
+      {/* Right maze: Random */}
+      <MazeCanvas grid={state.grid} ax={state.rnd.ax} ay={state.rnd.ay} path={state.rnd.path}
+        solved={state.rnd.solved} label="RANDOM BASELINE" color="#906060" />
+
+      {/* Comparison stats */}
+      <div style={{ flex:1, display:'flex', flexDirection:'column', gap:'6px', minWidth:0, justifyContent:'center' }}>
+        {/* Episode counter */}
+        <div style={{ display:'flex', gap:'20px', fontFamily:'var(--mono)' }}>
+          <div><span style={{ fontSize:'7px', color:'var(--t-dim)', letterSpacing:'1px' }}>EPISODE</span><br/>
+            <span style={{ fontSize:'18px', color:'var(--t-max)', fontWeight:500 }}>{state.episode}</span></div>
+          <div><span style={{ fontSize:'7px', color:'var(--t-dim)', letterSpacing:'1px' }}>MAZES</span><br/>
+            <span style={{ fontSize:'18px', color:'var(--t-max)', fontWeight:500 }}>{state.totalMazes}</span></div>
+          <div><span style={{ fontSize:'7px', color:'var(--t-dim)', letterSpacing:'1px' }}>Q-FEATURES</span><br/>
+            <span style={{ fontSize:'14px', color:'#3098a8', fontWeight:500 }}>{state.engQTable.size}</span></div>
+          <div><span style={{ fontSize:'7px', color:'var(--t-dim)', letterSpacing:'1px' }}>EPSILON</span><br/>
+            <span style={{ fontSize:'14px', color:'var(--t-sec)', fontWeight:500 }}>{state.engEpsilon.toFixed(3)}</span></div>
+          {state.isPersisted && (
+            <div><span style={{ fontSize:'7px', color:'var(--t-dim)', letterSpacing:'1px' }}>MODEL</span><br/>
+              <span style={{ fontSize:'11px', color:'#508870', fontWeight:500 }}>SAVED</span></div>
+          )}
+        </div>
+
+        {/* Comparison bars */}
+        <div style={{ display:'flex', flexDirection:'column', gap:'3px' }}>
+          <div style={{ display:'flex', gap:'6px', fontFamily:'var(--mono)', fontSize:'7px', color:'var(--t-dim)', letterSpacing:'0.5px', paddingLeft:'66px' }}>
+            <span style={{ flex:1 }}>ENGRAM vs RANDOM</span>
+          </div>
+          <CompBar engVal={engRate*100} rndVal={rndRate*100} label="SUCCESS" suffix="%" />
+          <CompBar engVal={state.engSolved} rndVal={state.rndSolved} label="SOLVED" />
+          <CompBar engVal={engAvgR} rndVal={rndAvgR} label="AVG REWARD" />
+        </div>
+
+        {/* Status */}
+        <div style={{ display:'flex', alignItems:'center', gap:'8px' }}>
+          <div style={{ width:'5px', height:'5px', borderRadius:'50%',
+            background: engRate>0.3?'#508870':'#3098a8',
+            boxShadow: `0 0 6px ${engRate>0.3?'#508870':'#3098a8'}`,
+            animation:'pulse 2s ease-in-out infinite',
+          }} />
+          <span style={{ fontFamily:'var(--mono)', fontSize:'10px', color: engRate>0.3?'#508870':'#3098a8', letterSpacing:'1.5px', fontWeight:500 }}>
+            {engRate>0.5?'CONVERGING':engRate>0.15?'LEARNING':'EXPLORING'}
+          </span>
+          <span style={{ fontFamily:'var(--mono)', fontSize:'8px', color:'var(--t-dim)' }}>
+            SAME MAZE, DIFFERENT STRATEGY
+          </span>
+        </div>
+      </div>
     </div>
   )
 }
