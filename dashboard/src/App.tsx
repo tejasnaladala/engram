@@ -9,10 +9,6 @@ import MemoryHeatMap from './components/MemoryHeatMap'
 import SafetyLog from './components/SafetyLog'
 import BrainVisualization from './components/BrainVisualization'
 
-/* ─────────────────────────────────────────────────────────────
-   DEMO DATA -- synthetic RuntimeSnapshot generator
-   Produces physiologically plausible data at 30fps
-   ───────────────────────────────────────────────────────────── */
 function genDemo(tick: number): RuntimeSnapshot {
   const t = tick * 0.001
   const mids = ['Sensory','AssociativeMemory','PredictiveError','EpisodicMemory','ActionSelector','SafetyKernel']
@@ -51,35 +47,15 @@ function genDemo(tick: number): RuntimeSnapshot {
   }
 }
 
-/* ─────────────────────────────────────────────────────────────
-   PANEL HEADER -- consistent across all stations
-   ───────────────────────────────────────────────────────────── */
-function PH({ title, color, tag, stage }: { title: string; color?: string; tag?: string; stage?: string }) {
+function PH({ title, tag }: { title: string; tag?: string }) {
   return (
     <div className="phdr">
-      {color && <div className="phdr-dot" style={{ background: color, boxShadow: `0 0 6px ${color}` }} />}
-      {stage && <span style={{ fontFamily:'var(--mono)', fontSize:'7px', color:'var(--t-dim)', letterSpacing:'1px', marginRight:'2px' }}>{stage}</span>}
       <span className="phdr-title">{title}</span>
       {tag && <span className="phdr-tag">{tag}</span>}
     </div>
   )
 }
 
-/* ─────────────────────────────────────────────────────────────
-   FLOW STAGE DIVIDER -- labels between pipeline sections
-   ───────────────────────────────────────────────────────────── */
-function FlowDivider({ label }: { label: string }) {
-  return (
-    <div className="stage-label">
-      <span>{label}</span>
-    </div>
-  )
-}
-
-/* ═════════════════════════════════════════════════════════════
-   MAIN APP -- THE SIGNAL-FLOW NARRATIVE
-   Layout tells the story: input → process → remember → act → guard
-   ═════════════════════════════════════════════════════════════ */
 export default function App() {
   const [snapshot, setSnapshot] = useState<RuntimeSnapshot | null>(null)
   const [connected, setConnected] = useState(false)
@@ -109,104 +85,95 @@ export default function App() {
   if (!snapshot) return (
     <div style={{ display:'flex',alignItems:'center',justifyContent:'center',height:'100vh',background:'var(--void)',flexDirection:'column',gap:'16px' }}>
       <div style={{ width:'3px',height:'3px',borderRadius:'50%',background:'var(--cyan)',boxShadow:'var(--cyan-glow)',animation:'pulse 1.5s ease-in-out infinite' }} />
-      <span style={{ fontFamily:'var(--mono)',fontSize:'10px',letterSpacing:'6px',color:'var(--cyan)',fontWeight:300 }}>ENGRAM</span>
-      <span style={{ fontFamily:'var(--mono)',fontSize:'7px',letterSpacing:'3px',color:'var(--t-dim)' }}>INITIALIZING SIGNAL PIPELINE</span>
+      <span style={{ fontFamily:'var(--mono)',fontSize:'11px',letterSpacing:'6px',color:'var(--cyan)',fontWeight:300 }}>ENGRAM</span>
     </div>
   )
 
   const totalActive = snapshot.modules.reduce((s,m)=>s+m.active_count, 0)
 
+  /* LAYOUT: Brain is the hero center.
+     ┌──────────────────────────────────────────────────┐
+     │                  METRICS BAR                      │
+     ├────────┬─────────────────────────────┬────────────┤
+     │MODULES │                             │ PREDICTION │
+     │activity│      BRAIN HOLOGRAM         │ ERROR      │
+     │bars    │      (large, centered)      │ waveform   │
+     │        │                             │            │
+     ├────────┼──────────────┬──────────────┼────────────┤
+     │SAFETY  │ SPIKE RASTER │ MEMORY MAP   │            │
+     │log     │ (wide)       │ (square)     │            │
+     └────────┴──────────────┴──────────────┴────────────┘
+  */
+
   return (
     <div style={{ height:'100vh', display:'flex', flexDirection:'column', background:'var(--void)', position:'relative' }}>
-      {/* Ambient engineering grid */}
       <div className="ambient-grid" />
 
-      {/* ═══ SYSTEM STATUS BAR ═══ -- the "mission control" strip */}
       <MetricsBar metrics={snapshot.metrics} connected={connected} />
 
-      {/* ═══ MAIN WORKSPACE ═══ -- the signal-flow pipeline
-          Layout narrative:
-          ┌────────────┬──────────────────────────┬───────────┐
-          │ PERCEPTION │   NEURAL PROCESSING      │ COGNITION │
-          │ 3D brain   │   spike raster (hero)    │ PE trace  │
-          │ scan view  │   672 channels flowing   │ live err  │
-          ├────────────┤                          ├───────────┤
-          │ ACTIVATION │                          │ MEMORY    │
-          │ per-region │                          │ activation│
-          │ readouts   │                          ├───────────┤
-          │            │                          │ SAFETY    │
-          │            │                          │ governor  │
-          └────────────┴──────────────────────────┴───────────┘
-          Data flows left→right: sense→process→remember→act→guard
-      */}
       <div style={{
         flex: 1, display: 'grid',
-        gridTemplateColumns: '240px 1fr 220px',
-        gridTemplateRows: '1fr 1fr',
+        gridTemplateColumns: '200px 1fr 200px',
+        gridTemplateRows: '1.4fr 1fr',
         gap: '2px', padding: '2px',
         minHeight: 0, position: 'relative', zIndex: 1,
       }}>
 
-        {/* ═══ COLUMN 1: PERCEPTION ═══ */}
-        {/* Volumetric brain -- the "what are we looking at" anchor */}
+        {/* LEFT TOP: Module activity */}
         <div className="panel" style={{ gridRow: '1/2' }}>
-          <PH title="NEURAL TOPOLOGY" color="var(--c-input)" tag="3D" stage="01" />
-          <BrainVisualization modules={snapshot.modules} />
-        </div>
-
-        {/* Regional readouts -- per-region activation levels */}
-        <div className="panel" style={{ gridRow: '2/3' }}>
-          <PH title="REGIONAL ACTIVATION" tag="RT" stage="02" />
+          <PH title="REGIONS" tag="RT" />
           <ModuleActivity modules={snapshot.modules} />
         </div>
 
-        {/* ═══ COLUMN 2: PROCESSING ═══ -- the hero, full height */}
-        <div className="panel" style={{ gridRow: '1/3' }}>
-          <PH title="NEURAL ACTIVITY" color="var(--c-input)" tag={`${totalActive} ACTIVE`} stage="03" />
+        {/* CENTER TOP: Brain hologram -- the HERO */}
+        <div className="panel" style={{ gridRow: '1/2' }}>
+          <PH title="NEURAL TOPOLOGY" tag="3D" />
+          <BrainVisualization modules={snapshot.modules} />
+        </div>
+
+        {/* RIGHT TOP: Prediction error */}
+        <div className="panel" style={{ gridRow: '1/2' }}>
+          <PH title="PREDICTION ERROR" tag="PE" />
+          <PredictionError history={errorHistory} />
+        </div>
+
+        {/* LEFT BOTTOM: Safety log */}
+        <div className="panel" style={{ gridRow: '2/3' }}>
+          <PH title="SAFETY" tag={snapshot.metrics.total_vetoes > 0 ? `${snapshot.metrics.total_vetoes}` : 'OK'} />
+          <SafetyLog vetoes={vetoLog} />
+        </div>
+
+        {/* CENTER BOTTOM: Spike raster */}
+        <div className="panel" style={{ gridRow: '2/3' }}>
+          <PH title="NEURAL ACTIVITY" tag={`${totalActive} UNITS`} />
           <SpikeRaster spikeHistory={spikeHistory} />
         </div>
 
-        {/* ═══ COLUMN 3: COGNITION + MEMORY + SAFETY ═══ */}
-        <div style={{ gridRow: '1/3', display: 'flex', flexDirection: 'column', gap: '2px' }}>
-          {/* Prediction error -- the learning signal */}
-          <div className="panel" style={{ flex: 1 }}>
-            <PH title="PREDICTION ERROR" color="var(--c-predict)" tag="PE" stage="04" />
-            <PredictionError history={errorHistory} />
-          </div>
-
-          {/* Memory map -- where experiences are stored */}
-          <div className="panel" style={{ flex: 1 }}>
-            <PH title="MEMORY MAP" color="var(--c-memory)" tag="fMEM" stage="05" />
-            <MemoryHeatMap formations={snapshot.memory_formations} tick={snapshot.metrics.tick} />
-          </div>
-
-          {/* Safety governor -- the final gate before action */}
-          <div className="panel" style={{ flex: 0.6 }}>
-            <PH title="SAFETY GOVERNOR" color="var(--c-guard)" tag={snapshot.metrics.total_vetoes > 0 ? `${snapshot.metrics.total_vetoes}` : 'OK'} stage="06" />
-            <SafetyLog vetoes={vetoLog} />
-          </div>
+        {/* RIGHT BOTTOM: Memory map */}
+        <div className="panel" style={{ gridRow: '2/3' }}>
+          <PH title="MEMORY MAP" tag="fMEM" />
+          <MemoryHeatMap formations={snapshot.memory_formations} tick={snapshot.metrics.tick} />
         </div>
       </div>
 
-      {/* ═══ STATUS LINE ═══ -- system identification footer */}
+      {/* Footer */}
       <div style={{
         height: '18px', display: 'flex', alignItems: 'center',
         padding: '0 10px', gap: '20px',
         borderTop: '1px solid var(--b-ghost)',
         background: 'var(--s0)', flexShrink: 0, zIndex: 1,
+        fontFamily: 'var(--mono)', fontSize: '7px', letterSpacing: '1.5px', color: 'var(--t-dim)',
       }}>
-        <span style={{ fontFamily:'var(--mono)', fontSize:'7px', letterSpacing:'1px', color:'var(--t-dim)' }}>
-          ENGRAM NCS v0.1.0
-        </span>
-        <span style={{ fontFamily:'var(--mono)', fontSize:'7px', color:'var(--t-ghost)' }}>│</span>
-        <span style={{ fontFamily:'var(--mono)', fontSize:'7px', color:'var(--t-dim)' }}>
-          LIF/STDP &middot; 672 NEURONS &middot; 6 REGIONS &middot; EVENT-DRIVEN
-        </span>
+        <span>ENGRAM NCS v0.1.0</span>
+        <span style={{ color: 'var(--t-ghost)' }}>|</span>
+        <span>672 NEURONS</span>
+        <span style={{ color: 'var(--t-ghost)' }}>|</span>
+        <span>6 REGIONS</span>
+        <span style={{ color: 'var(--t-ghost)' }}>|</span>
+        <span>EVENT-DRIVEN</span>
         <div style={{ flex: 1 }} />
-        <span style={{ fontFamily:'var(--mono)', fontSize:'7px', color:'var(--t-dim)' }}>
-          SIGNAL PIPELINE ACTIVE
-        </span>
-        <div style={{ width:'4px', height:'4px', borderRadius:'50%', background:'var(--cyan)', boxShadow:'var(--cyan-glow)', animation:'breathe 3s ease-in-out infinite' }} />
+        <span>SIGNAL PIPELINE ACTIVE</span>
+        <div style={{ width:'4px', height:'4px', borderRadius:'50%', background:'var(--cyan)', boxShadow:'var(--cyan-glow)', animation:'pulse 3s ease-in-out infinite' }} />
       </div>
     </div>
   )

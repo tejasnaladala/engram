@@ -1,18 +1,16 @@
-// Engram Neuro-Clinical Design System -- Theme Constants
-// Based on radiology workstation conventions, neuroimaging color maps,
-// and computational neuroscience visualization standards.
+// Engram Design System -- Muted Clinical Palette
+// Monochrome-ish teal/slate/blue tones. NOT rainbow.
 
-/** Module colors -- mapped to neuroanatomical conventions */
+/** Module colors -- muted, cohesive, not saturated */
 export const MODULE_COLORS = {
-  Sensory: '#3dd8e0',          // Somatosensory cortex -- cool cyan
-  AssociativeMemory: '#8b6cf0', // Association cortex -- violet
-  PredictiveError: '#e8943a',   // Predictive coding -- metabolic amber
-  EpisodicMemory: '#4ac0d0',   // Hippocampal -- teal
-  ActionSelector: '#3dbd5c',   // Motor cortex -- clinical green
-  SafetyKernel: '#d94040',     // Brainstem/autonomic -- diagnostic red
+  Sensory: '#5098a8',
+  AssociativeMemory: '#5878a0',
+  PredictiveError: '#907858',
+  EpisodicMemory: '#508898',
+  ActionSelector: '#508870',
+  SafetyKernel: '#906060',
 } as const
 
-/** Anatomically accurate module naming */
 export const MODULE_NAMES = [
   'Somatosensory Ctx.',
   'Association Ctx.',
@@ -22,33 +20,24 @@ export const MODULE_NAMES = [
   'Brainstem Gov.',
 ]
 
-/** Short clinical abbreviations */
-export const MODULE_ABBREVS = [
-  'S1',    // Primary somatosensory
-  'ASC',   // Association cortex
-  'PE',    // Prediction error
-  'HPC',   // Hippocampus
-  'M1',    // Primary motor
-  'BST',   // Brainstem
-]
+export const MODULE_ABBREVS = ['S1', 'ASC', 'PE', 'HPC', 'M1', 'BST']
 
 export const MODULE_COLOR_ARRAY = [
-  '#3dd8e0',
-  '#8b6cf0',
-  '#e8943a',
-  '#4ac0d0',
-  '#3dbd5c',
-  '#d94040',
+  '#5098a8',
+  '#5878a0',
+  '#907858',
+  '#508898',
+  '#508870',
+  '#906060',
 ]
 
-/** Dim variants for backgrounds / inactive states */
 export const MODULE_COLOR_DIM = [
-  'rgba(61, 216, 224, 0.12)',
-  'rgba(139, 108, 240, 0.12)',
-  'rgba(232, 148, 58, 0.12)',
-  'rgba(74, 192, 208, 0.12)',
-  'rgba(61, 189, 92, 0.12)',
-  'rgba(217, 64, 64, 0.12)',
+  'rgba(80, 152, 168, 0.10)',
+  'rgba(88, 120, 160, 0.10)',
+  'rgba(144, 120, 88, 0.10)',
+  'rgba(80, 136, 152, 0.10)',
+  'rgba(80, 136, 112, 0.10)',
+  'rgba(144, 96, 96, 0.10)',
 ]
 
 export const SURFACES = {
@@ -61,11 +50,10 @@ export const SURFACES = {
 }
 
 export const ACCENT = {
-  primary: '#3dd8e0',
-  primaryDim: 'rgba(61, 216, 224, 0.15)',
-  primaryGlow: 'rgba(61, 216, 224, 0.08)',
+  primary: '#3098a8',
+  primaryDim: 'rgba(48, 152, 168, 0.12)',
+  primaryGlow: 'rgba(48, 152, 168, 0.06)',
 }
 
-/** Neuron count per module -- for visualization scaling */
 export const MODULE_NEURON_COUNTS = [128, 256, 64, 64, 128, 32]
 export const TOTAL_NEURONS = 672

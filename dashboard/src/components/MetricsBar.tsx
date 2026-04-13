@@ -11,11 +11,10 @@ function fmt(n: number): string {
   return n.toFixed(0)
 }
 
-/** Single metric readout -- key:value in monospace */
 function R({ k, v, c }: { k: string; v: string; c?: string }) {
   return (
-    <span style={{ fontFamily:'var(--mono)', fontSize:'10px', letterSpacing:'0.3px' }}>
-      <span style={{ color:'var(--t-dim)', fontSize:'9px' }}>{k}</span>
+    <span style={{ fontFamily:'var(--mono)', fontSize:'11px', letterSpacing:'0.3px' }}>
+      <span style={{ color:'var(--t-sec)', fontSize:'9px' }}>{k}</span>
       <span style={{ color:'var(--t-ghost)', margin:'0 3px' }}>:</span>
       <span style={{ color: c || 'var(--t-max)', fontWeight: 500, fontVariantNumeric:'tabular-nums' }}>{v}</span>
     </span>
@@ -28,31 +27,26 @@ export default function MetricsBar({ metrics, connected }: MetricsBarProps) {
 
   return (
     <div style={{
-      display:'flex', alignItems:'center', gap:'14px',
-      padding:'0 12px', height:'30px', flexShrink:0,
+      display:'flex', alignItems:'center', gap:'16px',
+      padding:'0 14px', height:'34px', flexShrink:0,
       background:'var(--s1)', borderBottom:'1px solid var(--b-dim)',
       position:'relative', zIndex:2,
     }}>
-      {/* Top signal line */}
-      <div style={{
-        position:'absolute', top:0, left:0, right:0, height:'1px',
+      <div style={{ position:'absolute', top:0, left:0, right:0, height:'1px',
         background:`linear-gradient(90deg, transparent, ${connected?'var(--cyan-10)':'var(--b-sub)'} 50%, transparent)`,
       }} />
 
-      {/* System identity */}
-      <div style={{ display:'flex', alignItems:'center', gap:'6px' }}>
-        <div style={{
-          width:'4px', height:'4px', borderRadius:'1px', background:'var(--cyan)',
-          boxShadow:'0 0 6px var(--cyan)', animation:'breathe 3s ease-in-out infinite',
+      <div style={{ display:'flex', alignItems:'center', gap:'8px' }}>
+        <div style={{ width:'4px', height:'4px', borderRadius:'1px', background:'var(--cyan)',
+          boxShadow:'0 0 6px var(--cyan)', animation:'pulse 3s ease-in-out infinite',
         }} />
-        <span style={{ fontFamily:'var(--mono)', fontSize:'10px', fontWeight:700, letterSpacing:'2.5px', color:'var(--cyan)' }}>
+        <span style={{ fontFamily:'var(--mono)', fontSize:'12px', fontWeight:700, letterSpacing:'3px', color:'var(--cyan)' }}>
           ENGRAM
         </span>
       </div>
 
-      <span style={{ color:'var(--t-ghost)', fontFamily:'var(--mono)', fontSize:'10px' }}>│</span>
+      <span style={{ color:'var(--t-ghost)', fontFamily:'var(--mono)', fontSize:'11px' }}>|</span>
 
-      {/* Pipeline vitals -- each metric is a signal in the flow */}
       <div style={{ display:'flex', alignItems:'center', gap:'3px' }}>
         <div style={{ width:'4px', height:'4px', borderRadius:'50%', background:hzC, boxShadow:`0 0 4px ${hzC}` }} />
         <R k="Hz" v={hz.toFixed(0)} c={hzC} />
@@ -62,14 +56,13 @@ export default function MetricsBar({ metrics, connected }: MetricsBarProps) {
       <R k="syn" v={fmt(metrics.active_synapses)} c="var(--c-process)" />
       <R k="E" v={metrics.energy_units.toFixed(1)} c="var(--c-memory)" />
 
-      <span style={{ color:'var(--t-ghost)', fontFamily:'var(--mono)', fontSize:'10px' }}>│</span>
+      <span style={{ color:'var(--t-ghost)', fontFamily:'var(--mono)', fontSize:'11px' }}>|</span>
 
       <R k="t" v={(metrics.sim_time/1000).toFixed(2)+'s'} />
       <R k="tick" v={String(metrics.tick)} />
 
       <div style={{ flex:1 }} />
 
-      {/* Connection state */}
       <div style={{ display:'flex', alignItems:'center', gap:'5px' }}>
         <div style={{
           width:'4px', height:'4px', borderRadius:'50%',
@@ -77,7 +70,7 @@ export default function MetricsBar({ metrics, connected }: MetricsBarProps) {
           boxShadow: connected ? '0 0 6px var(--c-output)' : undefined,
           animation: connected ? undefined : 'pulse 2s ease-in-out infinite',
         }} />
-        <span style={{ fontFamily:'var(--mono)', fontSize:'8px', letterSpacing:'1.5px', color: connected?'var(--c-output)':'var(--c-predict)' }}>
+        <span style={{ fontFamily:'var(--mono)', fontSize:'9px', letterSpacing:'1.5px', color: connected?'var(--c-output)':'var(--c-predict)' }}>
           {connected ? 'LIVE' : 'SIM'}
         </span>
       </div>

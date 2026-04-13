@@ -18,20 +18,20 @@
   --s4: #181d2a;
   --s5: #1e2434;
 
-  /* ── SIGNAL COLORS -- each has a clear meaning ── */
-  --cyan: #38d8e8;         /* primary accent / system alive */
-  --cyan-20: rgba(56,216,232,0.20);
-  --cyan-10: rgba(56,216,232,0.10);
-  --cyan-05: rgba(56,216,232,0.05);
-  --cyan-glow: 0 0 16px rgba(56,216,232,0.15);
+  /* ── ACCENT -- muted teal, not neon ── */
+  --cyan: #3098a8;
+  --cyan-20: rgba(48,152,168,0.20);
+  --cyan-10: rgba(48,152,168,0.10);
+  --cyan-05: rgba(48,152,168,0.05);
+  --cyan-glow: 0 0 12px rgba(48,152,168,0.12);
 
-  /* Module palette -- mapped to signal flow role */
-  --c-input: #38d8e8;     /* sensory input = cyan */
-  --c-process: #8870f0;   /* association/processing = violet */
-  --c-predict: #f09030;   /* prediction = amber */
-  --c-memory: #40c8d8;    /* memory = teal */
-  --c-output: #40c060;    /* motor output = green */
-  --c-guard: #e04848;     /* safety = red */
+  /* Module palette -- muted, cohesive */
+  --c-input: #5098a8;
+  --c-process: #5878a0;
+  --c-predict: #907858;
+  --c-memory: #508898;
+  --c-output: #508870;
+  --c-guard: #906060;
 
   /* ── TEXT ── */
   --t-max: #d8dce8;
