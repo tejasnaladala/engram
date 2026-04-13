@@ -107,24 +107,43 @@ function isSolvable(grid: number[][], sx: number, sy: number, gx: number, gy: nu
 }
 
 // Feature-based state key for GENERALIZATION
+// Encodes: walls (4 dirs), corridor exits per neighbor (how many open
+// neighbors does each neighbor have -- distinguishes dead ends from
+// junctions), goal direction, distance bucket, hazard proximity.
 function featureKey(grid: number[][], ax: number, ay: number, gx: number, gy: number): string {
-  const wall = (dx: number, dy: number) => {
+  const isOpen = (x: number, y: number) =>
+    x>=0 && x<GRID && y>=0 && y<GRID && grid[y][x] !== WALL
+
+  // Walls in 4 directions
+  const w: number[] = ACTIONS.map(([dx,dy]) => isOpen(ax+dx, ay+dy) ? 0 : 1)
+
+  // For each open neighbor, count how many exits IT has (0-3)
+  // This distinguishes dead ends (1 exit = only back to us) from corridors/junctions
+  const exits: number[] = ACTIONS.map(([dx,dy]) => {
     const nx = ax+dx, ny = ay+dy
-    return (nx<0||nx>=GRID||ny<0||ny>=GRID||grid[ny][nx]===WALL) ? 1 : 0
-  }
-  const haz = (dx: number, dy: number) => {
-    const nx = ax+dx, ny = ay+dy
-    return (nx>=0&&nx<GRID&&ny>=0&&ny<GRID&&grid[ny][nx]===HAZARD) ? 1 : 0
-  }
+    if (!isOpen(nx,ny)) return 0
+    let count = 0
+    for (const [ddx,ddy] of ACTIONS) {
+      if (isOpen(nx+ddx, ny+ddy) && !(nx+ddx===ax && ny+ddy===ay)) count++
+    }
+    return Math.min(count, 3) // cap at 3
+  })
+
+  // Goal direction (-1, 0, 1 for x and y)
   const gdx = Math.sign(gx - ax)
   const gdy = Math.sign(gy - ay)
-  const hazNear = haz(0,-1)+haz(1,0)+haz(0,1)+haz(-1,0) > 0 ? 1 : 0
-  // Also encode 2-step wall lookahead for better navigation
-  const wall2 = (dx: number, dy: number) => {
-    const nx = ax+dx*2, ny = ay+dy*2
-    return (nx<0||nx>=GRID||ny<0||ny>=GRID||grid[ny][nx]===WALL) ? 1 : 0
-  }
-  return `${wall(0,-1)}${wall(1,0)}${wall(0,1)}${wall(-1,0)}_${wall2(0,-1)}${wall2(1,0)}${wall2(0,1)}${wall2(-1,0)}_${gdx}_${gdy}_${hazNear}`
+
+  // Distance bucket (0=far, 1=medium, 2=close)
+  const dist = Math.abs(gx-ax) + Math.abs(gy-ay)
+  const distBucket = dist <= 3 ? 2 : dist <= 7 ? 1 : 0
+
+  // Hazard in any neighbor
+  const hazNear = ACTIONS.some(([dx,dy]) => {
+    const nx = ax+dx, ny = ay+dy
+    return nx>=0 && nx<GRID && ny>=0 && ny<GRID && grid[ny][nx]===HAZARD
+  }) ? 1 : 0
+
+  return `${w.join('')}_${exits.join('')}_${gdx}_${gdy}_${distBucket}_${hazNear}`
 }
 
 function createAgent(): AgentState {
@@ -166,8 +185,13 @@ function agentStep(state: AgentState): AgentState {
   let reward = -0.02
   let done = false
 
+  const prevDist = Math.abs(s.ax - s.gx) + Math.abs(s.ay - s.gy)
   if (nx>=0 && nx<GRID && ny>=0 && ny<GRID && s.grid[ny][nx] !== WALL) {
     s.ax = nx; s.ay = ny
+    const newDist = Math.abs(s.ax - s.gx) + Math.abs(s.ay - s.gy)
+    // Distance-based shaping: reward getting closer, penalize going further
+    if (newDist < prevDist) reward += 0.05
+    else if (newDist > prevDist) reward -= 0.03
     if (s.grid[ny][nx] === HAZARD) reward = -1.0
     if (nx===s.gx && ny===s.gy) { reward = 10.0; done = true; s.solved = true; s.mazesSolved++ }
   } else { reward = -0.3 }
