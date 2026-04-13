@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { MODULE_NAMES, MODULE_COLOR_ARRAY } from './lib/theme'
+import { MODULE_NAMES } from './lib/theme'
 import type { RuntimeSnapshot, SpikeEvent, VetoEvent } from './lib/protocol'
 import MetricsBar from './components/MetricsBar'
 import SpikeRaster from './components/SpikeRaster'
@@ -90,20 +90,17 @@ export default function App() {
   const totalActive = snapshot.modules.reduce((s,m)=>s+m.active_count, 0)
 
   /*
-     CENTERED LAYOUT -- brain hero top, live learning middle, diagnostics bottom
-     Everything centered and balanced, no cramped side panels
-
-     ┌────────────────────────────────────────────────────────┐
-     │                    METRICS BAR                         │
-     ├──────────┬──────────────────────────────┬──────────────┤
-     │ REGIONS  │     BRAIN HOLOGRAM (3D)      │   PRED ERR   │
-     │ activity │     (large, centered)        │   + MEMORY   │
-     ├──────────┴──────────────────────────────┴──────────────┤
-     │           LIVE LEARNING AGENT (full width)             │
-     │     grid + reward curve + metrics + status             │
-     ├────────────────────────────────────────────────────────┤
-     │        SPIKE RASTER (full width, compact)              │
-     └────────────────────────────────────────────────────────┘
+     TIGHT LAYOUT -- no wasted space, everything fills its allocation
+     ┌──────────────────────────────────────────────────────────┐
+     │                      METRICS BAR (34px)                  │
+     ├────────┬─────────────────┬────────┬─────────┬───────────┤
+     │REGIONS │   BRAIN (3D)    │ PRED   │ MEMORY  │  SAFETY   │
+     │        │                 │ ERROR  │  MAP    │  LOG      │
+     ├────────┴─────────────────┴────────┴─────────┴───────────┤
+     │          LIVE LEARNING AGENT (full width)                │
+     ├─────────────────────────────────────────────────────────┤
+     │          SPIKE RASTER (full width, compact)              │
+     └─────────────────────────────────────────────────────────┘
   */
 
   return (
@@ -111,61 +108,51 @@ export default function App() {
       <div className="ambient-grid" />
       <MetricsBar metrics={snapshot.metrics} connected={connected} />
 
-      <div style={{ flex:1, display:'flex', flexDirection:'column', gap:'2px', padding:'2px', minHeight:0, position:'relative', zIndex:1 }}>
+      <div style={{ flex:1, display:'flex', flexDirection:'column', gap:'1px', padding:'1px', minHeight:0, position:'relative', zIndex:1 }}>
 
-        {/* ROW 1: Brain topology (hero) flanked by diagnostics */}
-        <div style={{ display:'grid', gridTemplateColumns:'160px 1fr 160px', gap:'2px', flex:'1.2' }}>
-          {/* Regions */}
+        {/* ROW 1: ALL diagnostics in one row -- no wasted vertical space */}
+        <div style={{ display:'grid', gridTemplateColumns:'140px 1fr 180px 140px 140px', gap:'1px', height:'240px', flexShrink:0 }}>
           <div className="panel">
             <PH title="REGIONS" tag="RT" />
             <ModuleActivity modules={snapshot.modules} />
           </div>
-
-          {/* Brain -- THE HERO */}
           <div className="panel">
             <PH title="NEURAL TOPOLOGY" tag="3D" />
             <BrainVisualization modules={snapshot.modules} />
           </div>
-
-          {/* Right stack: PE + memory + safety */}
-          <div style={{ display:'flex', flexDirection:'column', gap:'2px' }}>
-            <div className="panel" style={{ flex:1 }}>
-              <PH title="PRED. ERROR" tag="PE" />
-              <PredictionError history={errorHistory} />
-            </div>
-            <div className="panel" style={{ flex:0.8 }}>
-              <PH title="MEMORY" tag="fMEM" />
-              <MemoryHeatMap formations={snapshot.memory_formations} tick={snapshot.metrics.tick} />
-            </div>
-          </div>
-        </div>
-
-        {/* ROW 2: Live learning agent -- FULL WIDTH, prominent */}
-        <div className="panel" style={{ flex:'1', minHeight:'180px' }}>
-          <PH title="LIVE LEARNING -- RANDOM MAZE GENERALIZATION" tag="Q-LEARN" />
-          <LiveAgent />
-        </div>
-
-        {/* ROW 3: Spike raster + safety -- FULL WIDTH, compact */}
-        <div style={{ display:'grid', gridTemplateColumns:'1fr 160px', gap:'2px', flex:'0.6' }}>
           <div className="panel">
-            <PH title="NEURAL ACTIVITY" tag={`${totalActive} UNITS`} />
-            <SpikeRaster spikeHistory={spikeHistory} />
+            <PH title="PRED. ERROR" tag="PE" />
+            <PredictionError history={errorHistory} />
+          </div>
+          <div className="panel">
+            <PH title="MEMORY" tag="fMEM" />
+            <MemoryHeatMap formations={snapshot.memory_formations} tick={snapshot.metrics.tick} />
           </div>
           <div className="panel">
             <PH title="SAFETY" tag={snapshot.metrics.total_vetoes > 0 ? `${snapshot.metrics.total_vetoes}` : 'OK'} />
             <SafetyLog vetoes={vetoLog} />
           </div>
         </div>
+
+        {/* ROW 2: Live learning agent -- the star of the show */}
+        <div className="panel" style={{ flex:1, minHeight:0 }}>
+          <PH title="LIVE LEARNING -- RANDOM MAZE GENERALIZATION" tag="Q-LEARN" />
+          <LiveAgent />
+        </div>
+
+        {/* ROW 3: Spike raster -- compact, full width */}
+        <div className="panel" style={{ height:'160px', flexShrink:0 }}>
+          <PH title="NEURAL ACTIVITY" tag={`${totalActive} UNITS`} />
+          <SpikeRaster spikeHistory={spikeHistory} />
+        </div>
       </div>
 
-      {/* Footer */}
       <div style={{
-        height:'20px', display:'flex', alignItems:'center',
-        padding:'0 12px', gap:'20px',
+        height:'18px', display:'flex', alignItems:'center',
+        padding:'0 10px', gap:'20px',
         borderTop:'1px solid var(--b-ghost)',
         background:'var(--s0)', flexShrink:0, zIndex:1,
-        fontFamily:'var(--mono)', fontSize:'8px', letterSpacing:'1.5px', color:'var(--t-dim)',
+        fontFamily:'var(--mono)', fontSize:'7px', letterSpacing:'1.5px', color:'var(--t-dim)',
       }}>
         <span>ENGRAM NCS v0.1.0</span>
         <span style={{ color:'var(--t-ghost)' }}>|</span>
