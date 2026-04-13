@@ -114,8 +114,10 @@ interface DualState {
   engRewards: number[]
   engSuccesses: boolean[]
   engSolved: number
-  // Random baseline
+  // Tabular Q-Learning baseline (standard RL)
   rnd: RunnerState
+  rndQTable: Map<string,number[]>  // position-based: "x,y" -> Q-values
+  rndEpsilon: number
   rndRewards: number[]
   rndSuccesses: boolean[]
   rndSolved: number
@@ -136,7 +138,8 @@ function createDual(): DualState {
     grid, mazeSeed:42, episode:0,
     eng: newRunner(), engQTable: qt, engEpsilon: qt.size > 0 ? 0.15 : 0.4,
     engRewards:[], engSuccesses:[], engSolved:0,
-    rnd: newRunner(), rndRewards:[], rndSuccesses:[], rndSolved:0,
+    rnd: newRunner(), rndQTable: new Map(), rndEpsilon: 0.4,
+    rndRewards:[], rndSuccesses:[], rndSolved:0,
     totalMazes:1, isPersisted: qt.size > 0,
   }
 }
@@ -185,9 +188,22 @@ function dualStep(state: DualState): DualState {
   s.engQTable.set(eKey, eNewQ)
   s.eng = eResult.runner
 
-  // Random: pure random actions
-  const rAction = Math.floor(Math.random()*4)
+  // Tabular Q-Learning (standard RL): uses exact (x,y) position as state.
+  // This is how robots/agents learn in standard ML -- memorizes positions.
+  // Works great on ONE maze, fails on new mazes (no generalization).
+  const rKey = `${s.rnd.ax},${s.rnd.ay}`
+  if (!s.rndQTable.has(rKey)) s.rndQTable.set(rKey, [0,0,0,0])
+  const rQ = s.rndQTable.get(rKey)!
+  const rAction = Math.random()<s.rndEpsilon ? Math.floor(Math.random()*4) : rQ.indexOf(Math.max(...rQ))
   const rResult = stepRunner(s.rnd, s.grid, rAction)
+
+  // Q-update for tabular agent
+  const rNextKey = `${rResult.runner.ax},${rResult.runner.ay}`
+  if (!s.rndQTable.has(rNextKey)) s.rndQTable.set(rNextKey, [0,0,0,0])
+  const rNextQ = s.rndQTable.get(rNextKey)!
+  const rTarget = rResult.reward + (rResult.done?0:0.99*Math.max(...rNextQ))
+  const rNewQ = [...rQ]; rNewQ[rAction] += 0.15*(rTarget-rNewQ[rAction])
+  s.rndQTable.set(rKey, rNewQ)
   s.rnd = rResult.runner
 
   // Check episode end for both
@@ -216,6 +232,10 @@ function dualStep(state: DualState): DualState {
     s.grid = newGrid
     s.totalMazes++
     s.engEpsilon = Math.max(0.08, s.engEpsilon*0.997)
+    // Tabular Q-table is WIPED on new maze -- position entries are useless
+    // in a different layout. This is the fundamental limitation of standard RL.
+    s.rndQTable = new Map()
+    s.rndEpsilon = 0.4  // resets exploration too
 
     // Save Q-table every 5 episodes
     if (s.episode % 5 === 0) { saveQTable(s.engQTable); s.isPersisted = true }
@@ -331,9 +351,9 @@ export default function LiveAgent() {
       <MazeCanvas grid={state.grid} ax={state.eng.ax} ay={state.eng.ay} path={state.eng.path}
         solved={state.eng.solved} label="ENGRAM (FEATURE Q-LEARN)" color="#3098a8" qTable={state.engQTable} />
 
-      {/* Right maze: Random */}
+      {/* Right maze: Tabular Q-Learning (standard RL) */}
       <MazeCanvas grid={state.grid} ax={state.rnd.ax} ay={state.rnd.ay} path={state.rnd.path}
-        solved={state.rnd.solved} label="RANDOM BASELINE" color="#906060" />
+        solved={state.rnd.solved} label="TABULAR Q-LEARN (STD RL)" color="#906060" />
 
       {/* Comparison stats */}
       <div style={{ flex:1, display:'flex', flexDirection:'column', gap:'6px', minWidth:0, justifyContent:'center' }}>
