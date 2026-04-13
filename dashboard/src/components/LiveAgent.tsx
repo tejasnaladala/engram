@@ -58,19 +58,32 @@ function isSolvable(grid: number[][]): boolean {
   return false
 }
 
-function featureKey(grid: number[][], ax: number, ay: number, gx: number, gy: number): string {
-  const isOpen = (x: number, y: number) => x>=0&&x<GRID&&y>=0&&y<GRID&&grid[y][x]!==WALL
-  const w = ACTIONS.map(([dx,dy]) => isOpen(ax+dx,ay+dy)?0:1)
-  const exits = ACTIONS.map(([dx,dy]) => {
-    const nx=ax+dx, ny=ay+dy; if (!isOpen(nx,ny)) return 0
-    let c = 0; for (const [ddx,ddy] of ACTIONS) { if (isOpen(nx+ddx,ny+ddy)&&!(nx+ddx===ax&&ny+ddy===ay)) c++ }
-    return Math.min(c,3)
-  })
+// Anti-aliasing feature key: 3x3 local map + goal direction + action history
+// This breaks perceptual aliasing that caused the old feature key to lose.
+function featureKey(grid: number[][], ax: number, ay: number, gx: number, gy: number, actionHist: number[]): string {
+  // 3x3 local map hash -- captures exact wall pattern including diagonals
+  let mapHash = 0
+  for (let dy = -1; dy <= 1; dy++) {
+    for (let dx = -1; dx <= 1; dx++) {
+      const nx = ax+dx, ny = ay+dy
+      const val = (nx<0||nx>=GRID||ny<0||ny>=GRID) ? 1 : (grid[ny][nx]===WALL ? 1 : grid[ny][nx]===HAZARD ? 2 : 0)
+      mapHash = mapHash * 3 + val
+    }
+  }
+  // Goal direction (8 bins -- includes diagonals)
   const gdx = Math.sign(gx-ax), gdy = Math.sign(gy-ay)
+  const goalDir = (gdy+1)*3 + (gdx+1) // 0-8, 9 values
+
+  // Distance bucket (4 levels for finer resolution)
   const dist = Math.abs(gx-ax)+Math.abs(gy-ay)
-  const db = dist<=3?2:dist<=7?1:0
-  const hz = ACTIONS.some(([dx,dy])=>{const nx=ax+dx,ny=ay+dy;return nx>=0&&nx<GRID&&ny>=0&&ny<GRID&&grid[ny][nx]===HAZARD})?1:0
-  return `${w.join('')}_${exits.join('')}_${gdx}_${gdy}_${db}_${hz}`
+  const db = dist<=2?3:dist<=5?2:dist<=9?1:0
+
+  // Last 3 actions (breaks aliasing at T-junctions and corridors)
+  const hist = actionHist.slice(-3)
+  while (hist.length < 3) hist.unshift(-1) // pad with -1 for "no action"
+  const histKey = hist.map(a => a+1).join('') // 0-4 per slot
+
+  return `${mapHash}_${goalDir}_${db}_${histKey}`
 }
 
 // Load persisted Q-table from localStorage
@@ -101,6 +114,8 @@ interface RunnerState {
   step: number; epReward: number
   path: [number,number][]
   solved: boolean
+  actionHist: number[]     // last K actions for Engram
+  visitCounts: Map<string,number>  // visit counts per cell for revisit penalty
 }
 
 interface DualState {
@@ -127,7 +142,7 @@ interface DualState {
 }
 
 function newRunner(): RunnerState {
-  return { ax:1, ay:1, step:0, epReward:0, path:[[1,1]], solved:false }
+  return { ax:1, ay:1, step:0, epReward:0, path:[[1,1]], solved:false, actionHist:[], visitCounts:new Map([['1,1',1]]) }
 }
 
 function createDual(): DualState {
@@ -145,9 +160,9 @@ function createDual(): DualState {
 }
 
 function stepRunner(
-  s: RunnerState, grid: number[][], action: number
+  s: RunnerState, grid: number[][], action: number, useVisitPenalty: boolean
 ): { runner: RunnerState; reward: number; done: boolean } {
-  const r = {...s}
+  const r = {...s, visitCounts: new Map(s.visitCounts), actionHist: [...s.actionHist, action]}
   const [dx,dy] = ACTIONS[action]
   const nx=r.ax+dx, ny=r.ay+dy
   let reward = -0.02
@@ -157,7 +172,16 @@ function stepRunner(
   if (nx>=0&&nx<GRID&&ny>=0&&ny<GRID&&grid[ny][nx]!==WALL) {
     r.ax=nx; r.ay=ny
     const newDist = Math.abs(r.ax-(GRID-2))+Math.abs(r.ay-(GRID-2))
-    if (newDist<prevDist) reward+=0.05; else if(newDist>prevDist) reward-=0.03
+    if (newDist<prevDist) reward+=0.08; else if(newDist>prevDist) reward-=0.04
+
+    // Visit-count penalty for Engram (discourages loops)
+    if (useVisitPenalty) {
+      const cellKey = `${r.ax},${r.ay}`
+      const visits = (r.visitCounts.get(cellKey) || 0) + 1
+      r.visitCounts.set(cellKey, visits)
+      if (visits > 1) reward -= 0.15 * (visits - 1) // escalating penalty for revisits
+    }
+
     if (grid[ny][nx]===HAZARD) reward=-1.0
     if (nx===GRID-2&&ny===GRID-2) { reward=10.0; done=true; r.solved=true }
   } else { reward=-0.3 }
@@ -165,8 +189,6 @@ function stepRunner(
   r.epReward += reward
   r.step++
   r.path = [...r.path, [r.ax,r.ay]]
-  // Single attempt per maze -- 150 steps max.
-  // Real-world scenario: robot enters a new building ONCE.
   if (r.step > 150) done = true
   return { runner:r, reward, done }
 }
@@ -174,30 +196,30 @@ function stepRunner(
 function dualStep(state: DualState): DualState {
   const s = {...state}
 
-  // Engram: feature Q-learning
-  const eKey = featureKey(s.grid, s.eng.ax, s.eng.ay, GRID-2, GRID-2)
-  if (!s.engQTable.has(eKey)) s.engQTable.set(eKey, [0,0,0,0])
+  // Engram: feature Q-learning with anti-aliasing
+  const eKey = featureKey(s.grid, s.eng.ax, s.eng.ay, GRID-2, GRID-2, s.eng.actionHist)
+  // Optimistic initialization -- encourages exploration of unseen states
+  if (!s.engQTable.has(eKey)) s.engQTable.set(eKey, [1.0, 1.0, 1.0, 1.0])
   const eQ = s.engQTable.get(eKey)!
   const eAction = Math.random()<s.engEpsilon ? Math.floor(Math.random()*4) : eQ.indexOf(Math.max(...eQ))
-  const eResult = stepRunner(s.eng, s.grid, eAction)
+  const eResult = stepRunner(s.eng, s.grid, eAction, true) // visit penalty ON
 
-  // Q-update for Engram
-  const eNextKey = featureKey(s.grid, eResult.runner.ax, eResult.runner.ay, GRID-2, GRID-2)
-  if (!s.engQTable.has(eNextKey)) s.engQTable.set(eNextKey, [0,0,0,0])
+  // Q-update with high learning rate (decays with steps)
+  const eLR = Math.max(0.1, 0.7 - s.eng.step * 0.004) // 0.7 -> 0.1 over 150 steps
+  const eNextKey = featureKey(s.grid, eResult.runner.ax, eResult.runner.ay, GRID-2, GRID-2, eResult.runner.actionHist)
+  if (!s.engQTable.has(eNextKey)) s.engQTable.set(eNextKey, [1.0, 1.0, 1.0, 1.0])
   const eNextQ = s.engQTable.get(eNextKey)!
   const eTarget = eResult.reward + (eResult.done?0:0.99*Math.max(...eNextQ))
-  const eNewQ = [...eQ]; eNewQ[eAction] += 0.25*(eTarget-eNewQ[eAction])
+  const eNewQ = [...eQ]; eNewQ[eAction] += eLR*(eTarget-eNewQ[eAction])
   s.engQTable.set(eKey, eNewQ)
   s.eng = eResult.runner
 
   // Tabular Q-Learning (standard RL): uses exact (x,y) position as state.
-  // This is how robots/agents learn in standard ML -- memorizes positions.
-  // Works great on ONE maze, fails on new mazes (no generalization).
   const rKey = `${s.rnd.ax},${s.rnd.ay}`
   if (!s.rndQTable.has(rKey)) s.rndQTable.set(rKey, [0,0,0,0])
   const rQ = s.rndQTable.get(rKey)!
   const rAction = Math.random()<s.rndEpsilon ? Math.floor(Math.random()*4) : rQ.indexOf(Math.max(...rQ))
-  const rResult = stepRunner(s.rnd, s.grid, rAction)
+  const rResult = stepRunner(s.rnd, s.grid, rAction, false) // no visit penalty
 
   // Q-update for tabular agent
   const rNextKey = `${rResult.runner.ax},${rResult.runner.ay}`
@@ -272,7 +294,7 @@ function MazeCanvas({ grid, ax, ay, path, solved, label, color, qTable }:
       ctx.globalAlpha = 0.3
       for (let y=0;y<GRID;y++) for (let x=0;x<GRID;x++) {
         if (grid[y][x]!==0) continue
-        const fk = featureKey(grid,x,y,GRID-2,GRID-2)
+        const fk = featureKey(grid,x,y,GRID-2,GRID-2,[])
         if (!qTable.has(fk)) continue
         const qv = qTable.get(fk)!
         if (Math.max(...qv)<0.01) continue
