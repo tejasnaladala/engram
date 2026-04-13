@@ -8,6 +8,7 @@ import PredictionError from './components/PredictionError'
 import MemoryHeatMap from './components/MemoryHeatMap'
 import SafetyLog from './components/SafetyLog'
 import BrainVisualization from './components/BrainVisualization'
+import LiveAgent from './components/LiveAgent'
 
 function genDemo(tick: number): RuntimeSnapshot {
   const t = tick * 0.001
@@ -91,68 +92,66 @@ export default function App() {
 
   const totalActive = snapshot.modules.reduce((s,m)=>s+m.active_count, 0)
 
-  /* LAYOUT: Brain is the hero center.
-     ┌──────────────────────────────────────────────────┐
-     │                  METRICS BAR                      │
-     ├────────┬─────────────────────────────┬────────────┤
-     │MODULES │                             │ PREDICTION │
-     │activity│      BRAIN HOLOGRAM         │ ERROR      │
-     │bars    │      (large, centered)      │ waveform   │
-     │        │                             │            │
-     ├────────┼──────────────┬──────────────┼────────────┤
-     │SAFETY  │ SPIKE RASTER │ MEMORY MAP   │            │
-     │log     │ (wide)       │ (square)     │            │
-     └────────┴──────────────┴──────────────┴────────────┘
+  /*
+     LAYOUT: Brain hero top-center, live agent below, diagnostics around
+     ┌──────────┬────────────────────────────┬──────────┐
+     │ REGIONS  │     BRAIN HOLOGRAM (3D)    │ PRED ERR │
+     ├──────────┼────────────────────────────┤──────────┤
+     │ SAFETY   │  LIVE LEARNING AGENT       │ MEMORY   │
+     │ LOG      │  (grid + reward curve)     │ MAP      │
+     ├──────────┼────────────────────────────┤──────────┤
+     │          │  SPIKE RASTER              │          │
+     └──────────┴────────────────────────────┴──────────┘
   */
 
   return (
     <div style={{ height:'100vh', display:'flex', flexDirection:'column', background:'var(--void)', position:'relative' }}>
       <div className="ambient-grid" />
-
       <MetricsBar metrics={snapshot.metrics} connected={connected} />
 
       <div style={{
         flex: 1, display: 'grid',
-        gridTemplateColumns: '200px 1fr 200px',
-        gridTemplateRows: '1.4fr 1fr',
+        gridTemplateColumns: '180px 1fr 180px',
+        gridTemplateRows: '1.3fr 0.9fr 1fr',
         gap: '2px', padding: '2px',
         minHeight: 0, position: 'relative', zIndex: 1,
       }}>
-
-        {/* LEFT TOP: Module activity */}
-        <div className="panel" style={{ gridRow: '1/2' }}>
+        {/* ROW 1 */}
+        <div className="panel">
           <PH title="REGIONS" tag="RT" />
           <ModuleActivity modules={snapshot.modules} />
         </div>
 
-        {/* CENTER TOP: Brain hologram -- the HERO */}
-        <div className="panel" style={{ gridRow: '1/2' }}>
+        <div className="panel">
           <PH title="NEURAL TOPOLOGY" tag="3D" />
           <BrainVisualization modules={snapshot.modules} />
         </div>
 
-        {/* RIGHT TOP: Prediction error */}
-        <div className="panel" style={{ gridRow: '1/2' }}>
+        <div className="panel">
           <PH title="PREDICTION ERROR" tag="PE" />
           <PredictionError history={errorHistory} />
         </div>
 
-        {/* LEFT BOTTOM: Safety log */}
-        <div className="panel" style={{ gridRow: '2/3' }}>
+        {/* ROW 2: LIVE LEARNING AGENT */}
+        <div className="panel">
           <PH title="SAFETY" tag={snapshot.metrics.total_vetoes > 0 ? `${snapshot.metrics.total_vetoes}` : 'OK'} />
           <SafetyLog vetoes={vetoLog} />
         </div>
 
-        {/* CENTER BOTTOM: Spike raster */}
-        <div className="panel" style={{ gridRow: '2/3' }}>
-          <PH title="NEURAL ACTIVITY" tag={`${totalActive} UNITS`} />
-          <SpikeRaster spikeHistory={spikeHistory} />
+        <div className="panel" style={{ overflow: 'hidden' }}>
+          <PH title="LIVE LEARNING" tag="Q-LEARN" />
+          <LiveAgent />
         </div>
 
-        {/* RIGHT BOTTOM: Memory map */}
-        <div className="panel" style={{ gridRow: '2/3' }}>
+        <div className="panel">
           <PH title="MEMORY MAP" tag="fMEM" />
           <MemoryHeatMap formations={snapshot.memory_formations} tick={snapshot.metrics.tick} />
+        </div>
+
+        {/* ROW 3: SPIKE RASTER (full width) */}
+        <div className="panel" style={{ gridColumn: '1 / -1' }}>
+          <PH title="NEURAL ACTIVITY" tag={`${totalActive} UNITS`} />
+          <SpikeRaster spikeHistory={spikeHistory} />
         </div>
       </div>
 
