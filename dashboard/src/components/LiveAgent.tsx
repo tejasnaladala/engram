@@ -330,6 +330,75 @@ function CompBar({ engVal, rndVal, label, suffix }: { engVal:number; rndVal:numb
   )
 }
 
+// Dual-line success rate chart -- THE key visual showing divergence
+function SuccessChart({ engSuccesses, rndSuccesses }: { engSuccesses:boolean[]; rndSuccesses:boolean[] }) {
+  const containerRef = useRef<HTMLDivElement>(null)
+  const ref = useRef<HTMLCanvasElement>(null)
+  useEffect(() => {
+    const c = ref.current; const cont = containerRef.current; if (!c||!cont) return
+    const ctx = c.getContext('2d')!
+    const rect = cont.getBoundingClientRect()
+    const w = Math.max(200, rect.width), h = 60
+    c.width=w*2; c.height=h*2; c.style.width=w+'px'; c.style.height=h+'px'
+    ctx.scale(2,2)
+    ctx.fillStyle='#060810'; ctx.fillRect(0,0,w,h)
+
+    if (engSuccesses.length < 3) {
+      ctx.fillStyle='#2a3450'; ctx.font='9px "JetBrains Mono", monospace'
+      ctx.textAlign='center'; ctx.fillText('Collecting data...',w/2,h/2)
+      return
+    }
+
+    // Compute windowed success rate for both
+    const win = 5
+    const engRates: number[] = []; const rndRates: number[] = []
+    for (let i = 0; i < engSuccesses.length; i++) {
+      const start = Math.max(0,i-win+1)
+      const eSlice = engSuccesses.slice(start,i+1)
+      const rSlice = rndSuccesses.slice(start,i+1)
+      engRates.push(eSlice.filter(Boolean).length/eSlice.length)
+      rndRates.push(rSlice.filter(Boolean).length/rSlice.length)
+    }
+
+    const n = engRates.length
+    const maxR = 1.0
+
+    // Area fill for Engram
+    ctx.fillStyle = 'rgba(48,152,168,0.08)'
+    ctx.beginPath(); ctx.moveTo(0,h)
+    for (let i=0;i<n;i++) ctx.lineTo((i/(n-1))*w, h - engRates[i]/maxR*(h-10)-5)
+    ctx.lineTo(w,h); ctx.closePath(); ctx.fill()
+
+    // Engram line (teal)
+    ctx.strokeStyle='#3098a8'; ctx.lineWidth=2; ctx.beginPath()
+    for (let i=0;i<n;i++) { const x=(i/(n-1))*w, y=h-engRates[i]/maxR*(h-10)-5; if(i===0)ctx.moveTo(x,y);else ctx.lineTo(x,y) }
+    ctx.stroke()
+
+    // Standard RL line (red/brown)
+    ctx.strokeStyle='#906060'; ctx.lineWidth=1.5; ctx.setLineDash([3,2]); ctx.beginPath()
+    for (let i=0;i<n;i++) { const x=(i/(n-1))*w, y=h-rndRates[i]/maxR*(h-10)-5; if(i===0)ctx.moveTo(x,y);else ctx.lineTo(x,y) }
+    ctx.stroke(); ctx.setLineDash([])
+
+    // Labels
+    ctx.font='8px "JetBrains Mono", monospace'
+    ctx.fillStyle='#3098a8'; ctx.textAlign='left'; ctx.fillText('ENGRAM',3,10)
+    ctx.fillStyle='#906060'; ctx.fillText('STD RL',3,20)
+    ctx.fillStyle='#2a3450'; ctx.textAlign='right'; ctx.fillText(`ep ${n}`,w-3,h-3)
+
+    // Current values at right edge
+    if (n > 0) {
+      const ey = h - engRates[n-1]/maxR*(h-10)-5
+      const ry = h - rndRates[n-1]/maxR*(h-10)-5
+      ctx.fillStyle='#3098a8'; ctx.textAlign='right'; ctx.fillText(`${(engRates[n-1]*100).toFixed(0)}%`,w-3,ey-3)
+      ctx.fillStyle='#906060'; ctx.fillText(`${(rndRates[n-1]*100).toFixed(0)}%`,w-3,ry+12)
+    }
+  }, [engSuccesses, rndSuccesses])
+
+  return <div ref={containerRef} style={{ width:'100%' }}>
+    <canvas ref={ref} style={{ display:'block', borderRadius:'2px', border:'1px solid rgba(48,80,120,0.08)' }} />
+  </div>
+}
+
 export default function LiveAgent() {
   const [state, setState] = useState<DualState>(createDual)
 
@@ -355,46 +424,71 @@ export default function LiveAgent() {
       <MazeCanvas grid={state.grid} ax={state.rnd.ax} ay={state.rnd.ay} path={state.rnd.path}
         solved={state.rnd.solved} label="TABULAR Q-LEARN (STD RL)" color="#906060" />
 
-      {/* Comparison stats */}
+      {/* Scoreboard + chart */}
       <div style={{ flex:1, display:'flex', flexDirection:'column', gap:'6px', minWidth:0, justifyContent:'center' }}>
-        {/* Episode counter */}
-        <div style={{ display:'flex', gap:'20px', fontFamily:'var(--mono)' }}>
-          <div><span style={{ fontSize:'7px', color:'var(--t-dim)', letterSpacing:'1px' }}>EPISODE</span><br/>
-            <span style={{ fontSize:'18px', color:'var(--t-max)', fontWeight:500 }}>{state.episode}</span></div>
-          <div><span style={{ fontSize:'7px', color:'var(--t-dim)', letterSpacing:'1px' }}>MAZES</span><br/>
-            <span style={{ fontSize:'18px', color:'var(--t-max)', fontWeight:500 }}>{state.totalMazes}</span></div>
-          <div><span style={{ fontSize:'7px', color:'var(--t-dim)', letterSpacing:'1px' }}>Q-FEATURES</span><br/>
-            <span style={{ fontSize:'14px', color:'#3098a8', fontWeight:500 }}>{state.engQTable.size}</span></div>
-          <div><span style={{ fontSize:'7px', color:'var(--t-dim)', letterSpacing:'1px' }}>EPSILON</span><br/>
-            <span style={{ fontSize:'14px', color:'var(--t-sec)', fontWeight:500 }}>{state.engEpsilon.toFixed(3)}</span></div>
-          {state.isPersisted && (
-            <div><span style={{ fontSize:'7px', color:'var(--t-dim)', letterSpacing:'1px' }}>MODEL</span><br/>
-              <span style={{ fontSize:'11px', color:'#508870', fontWeight:500 }}>SAVED</span></div>
-          )}
-        </div>
-
-        {/* Comparison bars */}
-        <div style={{ display:'flex', flexDirection:'column', gap:'3px' }}>
-          <div style={{ display:'flex', gap:'6px', fontFamily:'var(--mono)', fontSize:'7px', color:'var(--t-dim)', letterSpacing:'0.5px', paddingLeft:'66px' }}>
-            <span style={{ flex:1 }}>ENGRAM vs RANDOM</span>
+        {/* BIG SCOREBOARD -- unmissable */}
+        <div style={{ display:'flex', gap:'2px', alignItems:'stretch', fontFamily:'var(--mono)' }}>
+          {/* Engram score */}
+          <div style={{
+            flex:1, background:'rgba(48,152,168,0.06)', borderRadius:'3px', padding:'6px 10px',
+            border:'1px solid rgba(48,152,168,0.1)', display:'flex', flexDirection:'column', gap:'2px',
+          }}>
+            <span style={{ fontSize:'7px', color:'#3098a8', letterSpacing:'1.5px' }}>ENGRAM</span>
+            <div style={{ display:'flex', alignItems:'baseline', gap:'8px' }}>
+              <span style={{ fontSize:'28px', fontWeight:700, color:'#3098a8', fontVariantNumeric:'tabular-nums' }}>
+                {state.engSolved}
+              </span>
+              <span style={{ fontSize:'10px', color:'var(--t-sec)' }}>solved</span>
+              <span style={{ fontSize:'14px', fontWeight:600, color: engRate>0.3?'#508870':'#3098a8' }}>
+                {(engRate*100).toFixed(0)}%
+              </span>
+            </div>
+            <span style={{ fontSize:'7px', color:'var(--t-dim)' }}>
+              features: {state.engQTable.size} | eps: {state.engEpsilon.toFixed(2)}
+              {state.isPersisted ? ' | PERSISTENT' : ''}
+            </span>
           </div>
-          <CompBar engVal={engRate*100} rndVal={rndRate*100} label="SUCCESS" suffix="%" />
-          <CompBar engVal={state.engSolved} rndVal={state.rndSolved} label="SOLVED" />
-          <CompBar engVal={engAvgR} rndVal={rndAvgR} label="AVG REWARD" />
+
+          {/* VS divider */}
+          <div style={{ display:'flex', alignItems:'center', padding:'0 6px' }}>
+            <span style={{ fontSize:'10px', color:'var(--t-dim)', fontFamily:'var(--mono)', letterSpacing:'1px' }}>VS</span>
+          </div>
+
+          {/* Standard RL score */}
+          <div style={{
+            flex:1, background:'rgba(144,96,96,0.06)', borderRadius:'3px', padding:'6px 10px',
+            border:'1px solid rgba(144,96,96,0.1)', display:'flex', flexDirection:'column', gap:'2px',
+          }}>
+            <span style={{ fontSize:'7px', color:'#906060', letterSpacing:'1.5px' }}>TABULAR Q-LEARN</span>
+            <div style={{ display:'flex', alignItems:'baseline', gap:'8px' }}>
+              <span style={{ fontSize:'28px', fontWeight:700, color:'#906060', fontVariantNumeric:'tabular-nums' }}>
+                {state.rndSolved}
+              </span>
+              <span style={{ fontSize:'10px', color:'var(--t-sec)' }}>solved</span>
+              <span style={{ fontSize:'14px', fontWeight:600, color:'#906060' }}>
+                {(rndRate*100).toFixed(0)}%
+              </span>
+            </div>
+            <span style={{ fontSize:'7px', color:'var(--t-dim)' }}>
+              positions: {state.rndQTable.size} | RESETS EACH MAZE
+            </span>
+          </div>
         </div>
 
-        {/* Status */}
-        <div style={{ display:'flex', alignItems:'center', gap:'8px' }}>
+        {/* Dual success rate chart -- shows the gap growing over time */}
+        <SuccessChart engSuccesses={state.engSuccesses} rndSuccesses={state.rndSuccesses} />
+
+        {/* Episode + status line */}
+        <div style={{ display:'flex', alignItems:'center', gap:'10px', fontFamily:'var(--mono)' }}>
+          <span style={{ fontSize:'10px', color:'var(--t-sec)' }}>EP {state.episode}</span>
+          <span style={{ fontSize:'8px', color:'var(--t-dim)' }}>MAZE #{state.totalMazes}</span>
           <div style={{ width:'5px', height:'5px', borderRadius:'50%',
-            background: engRate>0.3?'#508870':'#3098a8',
-            boxShadow: `0 0 6px ${engRate>0.3?'#508870':'#3098a8'}`,
+            background: engRate>rndRate+0.1?'#508870':'#3098a8',
+            boxShadow: `0 0 6px ${engRate>rndRate+0.1?'#508870':'#3098a8'}`,
             animation:'pulse 2s ease-in-out infinite',
           }} />
-          <span style={{ fontFamily:'var(--mono)', fontSize:'10px', color: engRate>0.3?'#508870':'#3098a8', letterSpacing:'1.5px', fontWeight:500 }}>
-            {engRate>0.5?'CONVERGING':engRate>0.15?'LEARNING':'EXPLORING'}
-          </span>
-          <span style={{ fontFamily:'var(--mono)', fontSize:'8px', color:'var(--t-dim)' }}>
-            SAME MAZE, DIFFERENT STRATEGY
+          <span style={{ fontSize:'9px', color: engRate>rndRate+0.1?'#508870':'#3098a8', letterSpacing:'1px', fontWeight:500 }}>
+            {engRate>rndRate+0.1 ? 'ENGRAM OUTPERFORMING' : engRate>rndRate ? 'ENGRAM LEADING' : 'COMPETING'}
           </span>
         </div>
       </div>
