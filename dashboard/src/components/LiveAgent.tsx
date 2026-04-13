@@ -184,8 +184,8 @@ function agentStep(state: AgentState): AgentState {
   newQ[action] += 0.2 * (target - newQ[action])
   s.qTable.set(key, newQ)
 
-  // Episode end
-  if (done || s.step > GRID*GRID*3) {
+  // Episode end -- generous timeout so agent has time to explore
+  if (done || s.step > 500) {
     s.rewardHist = [...s.rewardHist, s.epReward]
     s.successHist = [...s.successHist, done]
     if (s.epReward > s.bestReward) s.bestReward = s.epReward
@@ -266,8 +266,10 @@ export default function LiveAgent() {
   const [state, setState] = useState<AgentState>(createAgent)
   const gridRef = useRef<HTMLCanvasElement>(null)
 
+  // Slower stepping so you can watch the agent navigate
+  // 40ms = 25 steps/sec -- fast enough to learn, slow enough to see
   useEffect(() => {
-    const interval = setInterval(() => setState(prev => agentStep(prev)), 10)
+    const interval = setInterval(() => setState(prev => agentStep(prev)), 40)
     return () => clearInterval(interval)
   }, [])
 
@@ -314,6 +316,33 @@ export default function LiveAgent() {
     // Agent label
     ctx.fillStyle = '#0a0e16'; ctx.font = `bold ${cell*0.35}px sans-serif`
     ctx.fillText('A', state.ax*cell+cell/2, state.ay*cell+cell/2+0.5)
+
+    // Show learned Q-values as arrows on visited open cells
+    // This makes learning VISIBLE -- you see the policy forming
+    ctx.globalAlpha = 0.25
+    for (let y = 0; y < GRID; y++) for (let x = 0; x < GRID; x++) {
+      if (state.grid[y][x] !== 0) continue
+      const fk = featureKey(state.grid, x, y, state.gx, state.gy)
+      if (!state.qTable.has(fk)) continue
+      const qv = state.qTable.get(fk)!
+      const best = qv.indexOf(Math.max(...qv))
+      if (Math.max(...qv) < 0.01) continue
+      const cx = x*cell+cell/2, cy = y*cell+cell/2
+      const arrowLen = cell * 0.3
+      const [adx, ady] = ACTIONS[best]
+      ctx.strokeStyle = '#3098a8'
+      ctx.lineWidth = 1.2
+      ctx.beginPath()
+      ctx.moveTo(cx - adx*arrowLen*0.5, cy - ady*arrowLen*0.5)
+      ctx.lineTo(cx + adx*arrowLen*0.5, cy + ady*arrowLen*0.5)
+      ctx.stroke()
+      // Arrowhead
+      ctx.beginPath()
+      ctx.arc(cx + adx*arrowLen*0.5, cy + ady*arrowLen*0.5, 1.5, 0, Math.PI*2)
+      ctx.fillStyle = '#3098a8'
+      ctx.fill()
+    }
+    ctx.globalAlpha = 1
 
     // Grid lines
     ctx.strokeStyle = 'rgba(48,80,120,0.04)'; ctx.lineWidth = 0.3
