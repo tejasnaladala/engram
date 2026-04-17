@@ -25,3 +25,19 @@ Thumbs.db
 research/
 LINKEDIN_POST.md
 neuromorphic-strategy/
+
+# Graphify temp files
+.graphify_*.json
+.graphify_chunk*.txt
+
+# Ruflo runtime
+.claude-flow/data/
+.claude-flow/logs/
+.claude-flow/sessions/
+.swarm/
+*.rvf
+agentdb.rvf
+.claude/memory.db
+
+# Ruflo-test sandbox
+ruflo-test/
