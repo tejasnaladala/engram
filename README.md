@@ -1,234 +1,93 @@
-<div align="center">
+# Procedural Maze RL Baselines
 
-<br>
+A fully reproducible procedural-maze benchmark with the following pattern, on the same audited test harness at 9x9 mazes:
 
-```
-                              ███████╗███╗   ██╗ ██████╗ ██████╗  █████╗ ███╗   ███╗
-                              ██╔════╝████╗  ██║██╔════╝ ██╔══██╗██╔══██╗████╗ ████║
-                              █████╗  ██╔██╗ ██║██║  ███╗██████╔╝███████║██╔████╔██║
-                              ██╔══╝  ██║╚██╗██║██║   ██║██╔══██╗██╔══██║██║╚██╔╝██║
-                              ███████╗██║ ╚████║╚██████╔╝██║  ██║██║  ██║██║ ╚═╝ ██║
-                              ╚══════╝╚═╝  ╚═══╝ ╚═════╝ ╚═╝  ╚═╝╚═╝  ╚═╝╚═╝     ╚═╝
-```
+- A 5-line egocentric wall-following heuristic solves **100%** of unseen instances
+- A BC-distilled MLP (same architecture, same observation, same optimizer as MLP_DQN) reaches **97.4%**
+- The best of seven HP-tuned modern reward-driven baselines (SB3 PPO, DQN, A2C across three LRs each, 70 runs) reaches **31.4%**, statistically tied with uniform Random (32.7%)
+- A behavioral-cloning warm-start experiment (initialize MLP_DQN at the 97% distilled weights, fine-tune via standard DQN) collapses test success to **13.6%** across all 5 seeds
 
-**An open-source framework for building AI systems that learn continuously from experience.**
+The neural policy class can express the maze-solving policy. Standard reward-driven RL does not discover this policy from random initialization, and actively pushes the network out of the high-performing basin even when initialized inside it.
 
-[![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
-[![Rust](https://img.shields.io/badge/rust-1.94%2B-orange.svg)](https://www.rust-lang.org/)
-[![Python](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://python.org)
-[![Tests](https://img.shields.io/badge/tests-17%2F17-brightgreen.svg)]()
+## Paper
 
-[Docs](docs/) &middot; [Examples](examples/) &middot; [Observatory](#the-observatory) &middot; [Contributing](CONTRIBUTING.md)
+- [`PAPER_SHORT.pdf`](PAPER_SHORT.pdf) — 6-page paper with all headline tables and claims
+- [`PAPER_PREVIEW.pdf`](PAPER_PREVIEW.pdf) — 11-page longer version with appendices
+- [`paper.md`](paper.md) — full working draft (markdown)
 
-<br>
+## Headline Result
 
-</div>
+| Tier | Agent | Mean success (%) | sd | n |
+|---|---|---|---|---|
+| Oracle | BFSOracle | 100.0 | 0.0 | 20 |
+| Heuristic (5-line, ego-only) | EgoWallFollowerLeft | 100.0 | 0.0 | 20 |
+| Distillation (same arch as DQN) | DistilledMLP_from_BFSOracle | 97.4 | 2.5 | 20 |
+| Random walk | NoBackRandom | 51.5 | 6.6 | 50 |
+| Random walk | Random | 32.7 | 6.1 | 50 |
+| Modern RL (SB3 DQN default LR) | SB3_DQN_lr5e-4 | 31.4 | 7.2 | 10 |
+| Neural RL (custom) | MLP_DQN | 19.3 | 6.7 | 40 |
+| Modern RL (SB3 A2C) | A2C_default | 8.4 | 4.3 | 10 |
+| Modern RL (SB3 PPO best LR) | PPO_lr3e-4 | 6.0 | 6.9 | 10 |
 
----
+## BC Warm-Start Collapse
 
-## What is Engram?
+| Seed | BC test (%) | Post-fine-tune (%) | Drop (pp) |
+|---|---|---|---|
+| 42 | 98.0 | 0.0 | -98.0 |
+| 123 | 100.0 | 18.0 | -82.0 |
+| 456 | 98.0 | 16.0 | -82.0 |
+| 789 | 90.0 | 12.0 | -78.0 |
+| 1024 | 100.0 | 22.0 | -78.0 |
+| **Mean** | **97.2** | **13.6** | **-83.6** |
 
-Engram is a framework for building adaptive systems that **learn from experience in real-time** &mdash; without retraining, without fine-tuning, without a training loop.
-
-You define a brain as a composition of learning regions. Each region has neurons, connections, and learning rules. Data flows through the system as events. Learning happens locally and continuously. Memory persists across sessions. A safety layer gates dangerous actions.
-
-```python
-import engram as eg
-
-brain = eg.Brain.default(input_dims=8, num_actions=4)
-
-env = eg.envs.GridWorld(size=12)
-obs = env.reset()
-
-for step in range(1000):
-    action = brain.step(obs)
-    obs, reward, done, _ = env.step(action)
-    brain.reward(reward)
-    if done:
-        obs = env.reset()
-```
-
-**No `loss.backward()`. No `optimizer.step()`. No epochs.**
-The brain learns online through local learning rules and neuromodulatory signals.
-
----
-
-## Why does this exist?
-
-Every major ML framework assumes training and inference are separate phases. But a growing class of systems need **continuous adaptation**:
-
-| Problem | Why standard ML fails | How Engram helps |
-|---------|----------------------|-----------------|
-| Robots in new environments | Retraining takes hours + cloud | Online adaptation in real-time |
-| Agents with persistent memory | LLMs are stateless per-session | Associative + episodic memory |
-| Edge AI personalization | Fine-tuning needs GPUs | Local learning rules, no backprop |
-| Safety-critical autonomy | No built-in action gating | Safety kernel vetoes dangerous actions |
-| Anomaly detection on streams | Batch models miss new patterns | Event-driven, always learning |
-
----
-
-## Core Architecture
-
-```
-         ┌─────────────────────────────────────┐
-         │         EXPERIENCE STREAM            │
-         └──────────────┬──────────────────────┘
-                        │
-              ┌─────────▼─────────┐
-              │  SENSORY ENCODER   │  observation → spikes
-              └────┬──────────┬───┘
-                   │          │
-         ┌─────────▼──┐  ┌───▼──────────┐
-         │ ASSOCIATIVE │  │  PREDICTIVE   │
-         │   MEMORY    │  │    LAYER      │
-         └──────┬──────┘  └──────┬────────┘
-                │                │
-         ┌──────▼──────┐  ┌─────▼────────┐
-         │   ACTION    │  │  PREDICTION   │
-         │  SELECTOR   │  │    ERROR      │
-         └──────┬──────┘  └──────────────┘
-                │
-         ┌──────▼──────┐
-         │   SAFETY    │  veto if unsafe
-         │    GATE     │
-         └──────┬──────┘
-                │
-         ┌──────▼──────┐
-         │   ACTION    │
-         └─────────────┘
-```
-
-Each box is a **Region** &mdash; a composable module with neurons and local learning dynamics. Regions connect via **Pathways** that learn through local rules.
-
----
-
-## Core Abstractions
-
-| Abstraction | Purpose | PyTorch Analogy |
-|-------------|---------|-----------------|
-| `Brain` | Top-level container. Wires regions, runs experience loop. | Training loop |
-| `Region` | Population of neurons with internal connections. | `nn.Module` |
-| `Pathway` | Weighted, plastic connection between regions. | `nn.Linear` (but learns locally) |
-| `LearningRule` | How connections change. Runs locally per pathway. | `autograd` (but local) |
-| `Modulator` | Global signals that gate learning. | `optimizer` |
-| `SafetyGate` | Constraint layer that vetoes actions. | *(no equivalent)* |
-
----
-
-## Learning Rules
-
-| Rule | Mechanism | Use case |
-|------|-----------|----------|
-| `ThreeFactorSTDP` | STDP + eligibility traces + neuromodulation | **Default.** Handles delayed reward via credit assignment. |
-| `STDP` | Spike-timing-dependent plasticity | Unsupervised pattern learning |
-| `RewardModulatedSTDP` | STDP gated by reward signal | Fast reward-driven adaptation |
-| `Hebbian` | Co-activation strengthening | Simple association |
-| *Custom* | Implement the `LearningRule` trait | Research / novel algorithms |
-
-The neuromodulatory system broadcasts four signals:
-- **Reward** (dopamine-like): reward prediction error drives learning direction
-- **Surprise** (acetylcholine-like): prediction error amplifies learning rate
-- **Arousal** (norepinephrine-like): scales overall learning magnitude
-- **Inhibition** (serotonin-like): dampens exploration when things go well
-
----
-
-## The Observatory
-
-A real-time visualization platform for understanding what adaptive systems learn.
+## Reproducing the Headline
 
 ```bash
-engram dashboard --port 3000
+git clone https://github.com/tejasnaladala/maze-rl-baselines
+cd maze-rl-baselines
+pip install -r requirements.txt
+
+# Verify all SHA-256 hashes + recompute every numerical claim
+python reproduce.py verify --manifest manifest_final.json
+
+# 3-minute smoke test (covers every agent class on consumer GPU)
+python smoke_test.py
 ```
 
-- 3D brain topology with signal pulses flowing between regions
-- Multi-channel spike raster (672 neurons, color-coded by region)
-- Prediction error waveform with live numeric readout
-- Memory formation heatmap (fMRI-style hot colormap)
-- Safety veto event log with expandable details
-- Module activity readouts with neuron counts
-- Interactive: hover tooltips, click-to-inspect, ablation toggles
+## Key Experiments (re-runnable)
 
----
+| Script | Runs | Wall time on RTX 5070 Ti |
+|---|---|---|
+| `launch_modern_baselines.py` | 70 (PPO/DQN/A2C × 3 LRs × 10 seeds) | ~7 hr |
+| `launch_bc_warmstart.py` | 5 seeds (BC + DQN fine-tune) | ~50 min |
+| `launch_loopy_pilot.py` | 25 (5 agents × 5 seeds) | ~4 min |
+| `launch_ppo_shaped.py` | 10 seeds | ~85 min |
+| `launch_policy_distillation.py` | distillation headline | ~30 min |
 
-## Technical Details
+## Methodology
 
-| Component | Implementation |
-|-----------|---------------|
-| Core runtime | Rust (zero-cost abstractions, WASM target, no GC) |
-| Neurons | Leaky Integrate-and-Fire, 672 across 6 regions |
-| Synapses | Compressed Sparse Row format, ~45K connections |
-| Learning | Three-factor STDP with eligibility traces (tau=1000ms) |
-| Memory | Sparse Distributed Memory (content-addressable, forgetting-resistant) |
-| Safety | Hard constraints + learned inhibitions |
-| Dashboard | React + Three.js + Recharts, WebSocket @ 30fps |
-| Browser demo | WebAssembly (87KB compiled) |
-| Python API | PyO3 bindings via maturin |
-| Tests | 17/17 passing |
+- **20+ seeds per cell**, paired bootstrap with Holm-Bonferroni correction
+- **SHA-256 manifest** of every result file (4,200+ JSON records)
+- **Code-hash pinned** per result (current main-sweep hash: `ed681d75c27fe352`)
+- **Single-file statistics pipeline** (`stats_pipeline.py`): paired bootstrap, Mann-Whitney U, Cohen d, Holm-Bonferroni, BCa
+- **Harness-bug audit trail** in §3.2.1 of the paper (caught and fixed during development)
 
----
+## What This Paper Is and Is Not
 
-## Roadmap
+**It is**: a small, well-audited benchmark with one specific narrow falsifiable claim, supported by ~3,500 runs across 20+ seeds per cell, complete reproducibility apparatus, and a striking BC warm-start result that did not exist in prior work.
 
-- [x] Core runtime with LIF neurons and sparse synapses
-- [x] 6 brain region modules
-- [x] Three-factor STDP with eligibility traces
-- [x] Neuromodulatory system (reward, surprise, arousal, inhibition)
-- [x] Observatory dashboard
-- [x] WASM browser demo
-- [x] Python bindings
-- [ ] YAML brain configuration
-- [ ] Module SDK (custom regions in Python)
-- [ ] Learning Rule SDK
-- [ ] Benchmark suite with DQN/PPO baselines
-- [ ] Sleep/consolidation mode
-- [ ] Curiosity-driven exploration
-- [ ] Multi-agent simulation
-- [ ] ROS 2 integration
-- [ ] NIR export for neuromorphic hardware
-
----
-
-## What This Is NOT
-
-- **Not AGI.** A framework for adaptive systems, not artificial general intelligence.
-- **Not a PyTorch replacement.** Complements PyTorch for continuous online learning.
-- **Not biologically accurate.** Brain-*inspired*, not brain-simulating.
-- **Not magic.** Requires informative reward signals to learn effectively.
-
----
-
-## Contributing
-
-See [CONTRIBUTING.md](CONTRIBUTING.md). Good first issues:
-
-- Add a learning rule (BCM, Oja, anti-Hebbian)
-- Add an environment (CartPole, sensor stream, maze)
-- Add a dashboard widget
-- Improve docs or examples
-
----
-
-## Inspiration
-
-Computational neuroscience principles adapted for engineering:
-
-- Spiking neural networks (Maass 1997)
-- Spike-timing-dependent plasticity (Bi & Poo 1998)
-- Three-factor learning with eligibility traces (Gerstner et al.)
-- Sparse Distributed Memory (Kanerva 1988)
-- Predictive coding (Rao & Ballard 1999)
-- Sleep replay consolidation (Tadros et al. 2022)
-
----
+**It is not**: a method paper, a paradigm-shifting contribution, or a result on large-scale environments. It is documented at 9x9 mazes and replicated on 4 MiniGrid environments. Larger-scale generalization is open follow-up.
 
 ## License
 
-Apache 2.0. See [LICENSE](LICENSE).
+Apache-2.0. See [`LICENSE`](LICENSE).
 
-<div align="center">
-<br>
+## Citing
 
-**[Get Started](#what-is-engram)** &middot; **[Examples](examples/)** &middot; **[Observatory](#the-observatory)** &middot; **[Contribute](CONTRIBUTING.md)**
+Single-author preprint. Citation format will be added when arXiv id is assigned.
 
-</div>
+## Contact
+
+Tejas Naladala — `tejas.naladala@gmail.com`
+
+Independent reproduction is welcomed and encouraged.
