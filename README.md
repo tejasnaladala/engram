@@ -11,9 +11,9 @@ The neural policy class can express the maze-solving policy. Standard reward-dri
 
 ## Paper
 
-- [`PAPER_SHORT.pdf`](PAPER_SHORT.pdf) — 6-page paper with all headline tables and claims
-- [`PAPER_PREVIEW.pdf`](PAPER_PREVIEW.pdf) — 11-page longer version with appendices
-- [`paper.md`](paper.md) — full working draft (markdown)
+- [`PAPER_SHORT.pdf`](PAPER_SHORT.pdf): 6-page paper with all headline tables and claims
+- [`PAPER_PREVIEW.pdf`](PAPER_PREVIEW.pdf): 11-page longer version with appendices
+- [`paper.md`](paper.md): full working draft (markdown)
 
 ## Headline Result
 
@@ -88,6 +88,6 @@ Single-author preprint. Citation format will be added when arXiv id is assigned.
 
 ## Contact
 
-Tejas Naladala — `tejas.naladala@gmail.com`
+Tejas Naladala: `tejas.naladala@gmail.com`
 
 Independent reproduction is welcomed and encouraged.
