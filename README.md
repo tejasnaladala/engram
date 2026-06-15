@@ -55,16 +55,16 @@ The framework is built from a small set of pieces. Conceptually:
 
 | Concept | What it is | Where it lives |
 |---|---|---|
-| **State cell** | A leaky integrate-and-fire neuron with membrane potential and a refractory period | `LIFNeuron`, `NeuronPopulation` (`engram-core/neuron.rs`) |
-| **Connection** | A sparse (CSR) weight matrix between two populations | `SynapseMatrix` (`engram-core/synapse.rs`) |
-| **Learning rule** | The plasticity that updates a connection from local spikes + modulation | `LearningRule` trait, `ThreeFactorSTDP`, `HebbianRule` (`engram-core/learning_rule.rs`) |
-| **Region** | A brain module that turns incoming spikes into outgoing spikes | `BrainModule` trait (`engram-core/module_trait.rs`); six concrete regions in `engram-modules` |
-| **Pathway** | A connection plus the learning rule that trains it, wiring one region to another | inter-module synapse + rule pairs in `engram-runtime/runtime.rs` |
+| **State cell** | A leaky integrate-and-fire neuron with membrane potential and a refractory period | `LIFNeuron`, `NeuronPopulation` (`crates/engram-core/src/neuron.rs`) |
+| **Connection** | A sparse (CSR) weight matrix between two populations | `SynapseMatrix` (`crates/engram-core/src/synapse.rs`) |
+| **Learning rule** | The plasticity that updates a connection from local spikes + modulation | `LearningRule` trait, `ThreeFactorSTDP`, `HebbianRule` (`crates/engram-core/src/learning_rule.rs`) |
+| **Region** | A brain module that turns incoming spikes into outgoing spikes | `BrainModule` trait (`crates/engram-core/src/module_trait.rs`); six concrete regions in `engram-modules` |
+| **Pathway** | A connection plus the learning rule that trains it, wiring one region to another | inter-module synapse + rule pairs in `crates/engram-runtime/src/runtime.rs` |
 | **Brain** | The runtime that orchestrates regions and pathways through the cognitive loop | `EngramRuntime` (`engram-runtime`), exposed to Python as `Runtime` |
-| **Modulator** | The global reward/surprise/arousal/inhibition signal, the "third factor" | `Neuromodulators` (`engram-core/learning_rule.rs`) |
+| **Modulator** | The global reward/surprise/arousal/inhibition signal, the "third factor" | `Neuromodulators` (`crates/engram-core/src/learning_rule.rs`) |
 | **Experience stream** | The sequence of observations and rewards driving the brain | environments in `python/engram/environments/` |
-| **Observer** | A snapshot of the brain's internal state for visualization | `RuntimeSnapshot` (`engram-core/types.rs`), streamed by `engram-server` |
-| **Safety envelope** | The gate that vetoes dangerous actions | `SafetyKernel` (`engram-modules/safety_kernel.rs`) |
+| **Observer** | A snapshot of the brain's internal state for visualization | `RuntimeSnapshot` (`crates/engram-core/src/types.rs`), streamed by `engram-server` |
+| **Safety envelope** | The gate that vetoes dangerous actions | `SafetyKernel` (`crates/engram-modules/src/safety_kernel.rs`) |
 
 In the current release the high-level Python API is the `Runtime` constructor, which assembles
 the six default regions and four learning pathways for you:
