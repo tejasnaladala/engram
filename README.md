@@ -1,93 +1,245 @@
-# Procedural Maze RL Baselines
+# Engram
 
-A fully reproducible procedural-maze benchmark with the following pattern, on the same audited test harness at 9x9 mazes:
+An open-source framework for building systems that learn continuously from experience.
 
-- A 5-line egocentric wall-following heuristic solves **100%** of unseen instances
-- A BC-distilled MLP (same architecture, same observation, same optimizer as MLP_DQN) reaches **97.4%**
-- The best of seven HP-tuned modern reward-driven baselines (SB3 PPO, DQN, A2C across three LRs each, 70 runs) reaches **31.4%**, statistically tied with uniform Random (32.7%)
-- A behavioral-cloning warm-start experiment (initialize MLP_DQN at the 97% distilled weights, fine-tune via standard DQN) collapses test success to **13.6%** across all 5 seeds
+Engram is a cognitive runtime, not a model. You wire together brain regions with plastic
+pathways, feed it a stream of observations and rewards, and it adapts online while it runs.
+There is no training phase and no inference phase, no optimizer, and no backward pass. Each
+connection updates itself from local activity and a global neuromodulatory signal, the way
+biological synapses are thought to.
 
-The neural policy class can express the maze-solving policy. Standard reward-driven RL does not discover this policy from random initialization, and actively pushes the network out of the high-performing basin even when initialized inside it.
+The core is Rust. The API you actually touch is Python (via PyO3). There is a React
+"Observatory" dashboard that streams the network's internal state at 30fps, and a WebAssembly
+build so the whole thing can run in a browser tab.
 
-## Paper
+```python
+from engram import Runtime, Trainer
+from engram.environments import GridWorldEnv
 
-- [`PAPER_SHORT.pdf`](PAPER_SHORT.pdf): 6-page paper with all headline tables and claims
-- [`PAPER_PREVIEW.pdf`](PAPER_PREVIEW.pdf): 11-page longer version with appendices
-- [`paper.md`](paper.md): full working draft (markdown)
-
-## Headline Result
-
-| Tier | Agent | Mean success (%) | sd | n |
-|---|---|---|---|---|
-| Oracle | BFSOracle | 100.0 | 0.0 | 20 |
-| Heuristic (5-line, ego-only) | EgoWallFollowerLeft | 100.0 | 0.0 | 20 |
-| Distillation (same arch as DQN) | DistilledMLP_from_BFSOracle | 97.4 | 2.5 | 20 |
-| Random walk | NoBackRandom | 51.5 | 6.6 | 50 |
-| Random walk | Random | 32.7 | 6.1 | 50 |
-| Modern RL (SB3 DQN default LR) | SB3_DQN_lr5e-4 | 31.4 | 7.2 | 10 |
-| Neural RL (custom) | MLP_DQN | 19.3 | 6.7 | 40 |
-| Modern RL (SB3 A2C) | A2C_default | 8.4 | 4.3 | 10 |
-| Modern RL (SB3 PPO best LR) | PPO_lr3e-4 | 6.0 | 6.9 | 10 |
-
-## BC Warm-Start Collapse
-
-| Seed | BC test (%) | Post-fine-tune (%) | Drop (pp) |
-|---|---|---|---|
-| 42 | 98.0 | 0.0 | -98.0 |
-| 123 | 100.0 | 18.0 | -82.0 |
-| 456 | 98.0 | 16.0 | -82.0 |
-| 789 | 90.0 | 12.0 | -78.0 |
-| 1024 | 100.0 | 22.0 | -78.0 |
-| **Mean** | **97.2** | **13.6** | **-83.6** |
-
-## Reproducing the Headline
-
-```bash
-git clone https://github.com/tejasnaladala/maze-rl-baselines
-cd maze-rl-baselines
-pip install -r requirements.txt
-
-# Verify all SHA-256 hashes + recompute every numerical claim
-python reproduce.py verify --manifest manifest_final.json
-
-# 3-minute smoke test (covers every agent class on consumer GPU)
-python smoke_test.py
+env = GridWorldEnv(size=8)
+brain = Runtime(input_dims=8, num_actions=4)      # 672 spiking neurons across 6 regions
+result = Trainer(brain, env).train(episodes=200)
+print(result.summary())
 ```
 
-## Key Experiments (re-runnable)
+## Why this is not another backprop framework
 
-| Script | Runs | Wall time on RTX 5070 Ti |
+A standard deep-learning stack collects a batch, computes a loss, and pushes gradients
+backward through the whole graph. The weights are frozen at deployment. Adapting to a new
+distribution means stopping, retraining, and redeploying.
+
+Engram learns the way a nervous system does:
+
+- **No backward pass.** Every pathway carries its own `LearningRule`. A synapse changes
+  because the neurons on either side of it fired in a particular order, scaled by a global
+  reward/surprise signal. Credit assignment is local in space and resolved over time through
+  eligibility traces, not by differentiating a loss.
+- **No separate train/eval split.** The brain is always learning. `Runtime.step()` observes,
+  thinks, acts, and updates weights in one call. Adaptation happens during deployment, on the
+  CPU, with no replay of a frozen checkpoint.
+- **Memory is a first-class structure, not a context window.** Associative memory (a
+  sparse-distributed store) and episodic memory (a replay buffer that consolidates during
+  quiet periods) persist across episodes by design. The runtime deliberately does *not* reset
+  them at episode boundaries.
+- **Safety is inside the loop.** A `SafetyKernel` runs alongside action selection and can veto
+  a proposed action before it reaches the environment, using both hard constraints and
+  inhibitions learned from past negative outcomes.
+
+The tradeoff is honest: this is sample-hungry online learning on small networks, not a way to
+top a benchmark leaderboard. It is built for systems that have to keep adapting after they
+ship, where you care more about behavior over time than about a single converged number.
+
+## Core abstractions
+
+The framework is built from a small set of pieces. Conceptually:
+
+| Concept | What it is | Where it lives |
 |---|---|---|
-| `launch_modern_baselines.py` | 70 (PPO/DQN/A2C × 3 LRs × 10 seeds) | ~7 hr |
-| `launch_bc_warmstart.py` | 5 seeds (BC + DQN fine-tune) | ~50 min |
-| `launch_loopy_pilot.py` | 25 (5 agents × 5 seeds) | ~4 min |
-| `launch_ppo_shaped.py` | 10 seeds | ~85 min |
-| `launch_policy_distillation.py` | distillation headline | ~30 min |
+| **State cell** | A leaky integrate-and-fire neuron with membrane potential and a refractory period | `LIFNeuron`, `NeuronPopulation` (`engram-core/neuron.rs`) |
+| **Connection** | A sparse (CSR) weight matrix between two populations | `SynapseMatrix` (`engram-core/synapse.rs`) |
+| **Learning rule** | The plasticity that updates a connection from local spikes + modulation | `LearningRule` trait, `ThreeFactorSTDP`, `HebbianRule` (`engram-core/learning_rule.rs`) |
+| **Region** | A brain module that turns incoming spikes into outgoing spikes | `BrainModule` trait (`engram-core/module_trait.rs`); six concrete regions in `engram-modules` |
+| **Pathway** | A connection plus the learning rule that trains it, wiring one region to another | inter-module synapse + rule pairs in `engram-runtime/runtime.rs` |
+| **Brain** | The runtime that orchestrates regions and pathways through the cognitive loop | `EngramRuntime` (`engram-runtime`), exposed to Python as `Runtime` |
+| **Modulator** | The global reward/surprise/arousal/inhibition signal, the "third factor" | `Neuromodulators` (`engram-core/learning_rule.rs`) |
+| **Experience stream** | The sequence of observations and rewards driving the brain | environments in `python/engram/environments/` |
+| **Observer** | A snapshot of the brain's internal state for visualization | `RuntimeSnapshot` (`engram-core/types.rs`), streamed by `engram-server` |
+| **Safety envelope** | The gate that vetoes dangerous actions | `SafetyKernel` (`engram-modules/safety_kernel.rs`) |
 
-## Methodology
+In the current release the high-level Python API is the `Runtime` constructor, which assembles
+the six default regions and four learning pathways for you:
 
-- **20+ seeds per cell**, paired bootstrap with Holm-Bonferroni correction
-- **SHA-256 manifest** of every result file (4,200+ JSON records)
-- **Code-hash pinned** per result (current main-sweep hash: `ed681d75c27fe352`)
-- **Single-file statistics pipeline** (`stats_pipeline.py`): paired bootstrap, Mann-Whitney U, Cohen d, Holm-Bonferroni, BCa
-- **Harness-bug audit trail** in §3.2.1 of the paper (caught and fixed during development)
+```python
+brain = Runtime(input_dims=8, num_actions=4, seed=42)
+```
 
-## What This Paper Is and Is Not
+The composable `Brain(regions=[...], pathways=[...])` builder that exposes those regions and
+pathways directly is on the roadmap (see [CONTRIBUTING.md](CONTRIBUTING.md)); today the wiring
+is fixed in `engram-runtime` and configured through `RuntimeConfig`.
 
-**It is**: a small, well-audited benchmark with one specific narrow falsifiable claim, supported by ~3,500 runs across 20+ seeds per cell, complete reproducibility apparatus, and a striking BC warm-start result that did not exist in prior work.
+## How learning works
 
-**It is not**: a method paper, a paradigm-shifting contribution, or a result on large-scale environments. It is documented at 9x9 mazes and replicated on 4 MiniGrid environments. Larger-scale generalization is open follow-up.
+The primary rule is three-factor STDP with eligibility traces:
+
+```
+dw_ij = eta * e_ij * M(t)
+
+  e_ij  eligibility trace: accumulates spike-timing correlations, decays with tau_e
+  M(t)  modulatory signal: reward prediction error, scaled by surprise / arousal / inhibition
+```
+
+A pre-then-post spike pair leaves a positive trace; post-then-pre leaves a negative one. The
+trace lingers (tau_e is ~1 second by default) so a reward arriving later can still strengthen
+the connections that led to it. When `M(t)` is near zero, nothing moves; when reward beats the
+running baseline, eligible connections strengthen. That is the whole credit-assignment story,
+and it runs per-pathway with no global graph.
+
+Four neuromodulators shape `M(t)`, loosely after their biological analogs:
+
+| Signal | Analog | Effect on learning |
+|---|---|---|
+| Reward | Dopamine | Sets the direction and sign of weight change |
+| Surprise | Acetylcholine | Amplifies the rate when input was unexpected |
+| Arousal | Norepinephrine | Scales overall magnitude |
+| Inhibition | Serotonin | Damps exploration when things are going well |
+
+`HebbianRule` is also provided for unmodulated "fire together, wire together" plasticity, and
+new rules are the most common contribution: implement the `LearningRule` trait and drop it onto
+a pathway.
+
+## Quickstart
+
+### Python
+
+```bash
+git clone https://github.com/tejasnaladala/engram
+cd engram
+pip install maturin
+maturin develop          # builds the Rust core and installs the `engram` package
+```
+
+```python
+from engram import Runtime, Trainer
+from engram.environments import GridWorldEnv
+
+env = GridWorldEnv(size=8, num_walls=8, num_hazards=3, seed=42)
+brain = Runtime(input_dims=8, num_actions=4, seed=42)
+
+result = Trainer(brain, env, ticks_per_step=3).train(episodes=200, verbose=True)
+print(result.summary())
+```
+
+The low-level loop, if you want to drive the brain yourself:
+
+```python
+brain = Runtime(input_dims=8, num_actions=4)
+obs = env.reset()
+done = False
+while not done:
+    action = brain.step(obs)            # encode -> think -> select -> safety-gate
+    obs, reward, done, info = env.step(action)
+    brain.reward(reward)                # delivered to the modulator on the next tick
+brain.end_episode()                     # resets transient state, keeps learned memory
+```
+
+There is also a CLI installed with the package:
+
+```bash
+engram run --episodes 50          # run the grid-world demo with a live render
+engram benchmark                  # continual-learning / adaptation / efficiency probes
+engram dashboard                  # start the WebSocket server for the Observatory
+```
+
+### Rust
+
+```bash
+cargo check --workspace           # type-check the whole workspace (no GPU, no Python)
+cargo run -p engram-server --release   # start the dashboard server on ws://localhost:9000/ws
+```
+
+### Dashboard
+
+```bash
+cd dashboard && npm install && npm run dev
+```
+
+The Observatory is a React + react-three-fiber app. It connects to `engram-server` over a
+WebSocket, decodes MessagePack snapshots, and renders region activity, spike traffic,
+prediction error, memory formation, and safety vetoes in real time.
+
+## Architecture
+
+```
+engram-core       Pure computation. LIF neurons, CSR synapses, learning rules, spike buffers.
+                  No platform dependencies. Compiles to native and to WebAssembly.
+engram-modules    The six brain regions, each implementing the BrainModule trait:
+                  SensoryEncoder, AssociativeMemory, PredictiveError, EpisodicMemory,
+                  ActionSelector, SafetyKernel.
+engram-runtime    The cognitive loop. Wires regions together with learning pathways,
+                  drives the modulators, and produces snapshots.
+engram-server     Axum WebSocket server. Streams snapshots to the Observatory at 30fps.
+engram-python     PyO3 bindings. Exposes the runtime as the `engram` Python package.
+engram-wasm       WebAssembly target for the in-browser demo.
+```
+
+Each tick runs a fixed sequence: sensory encoding, routing to associative and predictive
+layers, a memory step, prediction-error computation, modulator update, action selection,
+safety evaluation, episodic recording/replay, and finally the learning-rule updates across all
+pathways. The full step-by-step is in [ARCHITECTURE.md](ARCHITECTURE.md).
+
+Design choices worth calling out:
+
+- **Rust core, Python skin.** Spike processing is hot; the ergonomics live in Python.
+- **Sparse by default.** Synapses are CSR, and the loop processes spikes as events rather than
+  dense tensors, which pays off at the high sparsity these networks run at.
+- **Memory persists across episodes.** `reset_episode()` clears transient neuron state but
+  leaves associative memory and learned safety inhibitions intact. A full wipe is a separate
+  `reset()`.
+
+The default `Runtime(input_dims=8, num_actions=4)` builds **672 spiking neurons** across the
+six regions (128 sensory, 256 associative, 64 predictive, 64 episodic, 128 action, 32 safety)
+connected by four learning pathways.
+
+## Benchmarks
+
+The repository ships a runnable benchmark suite rather than a table of numbers to take on
+faith. Run it yourself:
+
+```bash
+python benchmarks/benchmark.py
+```
+
+It pits the Engram runtime against tabular Q-learning and a random baseline on three tasks that
+target what online local learning is supposed to be good at:
+
+1. **Grid-world navigation**: reach the goal, avoid walls and hazards.
+2. **Continual learning**: train on layout A, then layout B, then re-test A *without
+   retraining*, to measure catastrophic forgetting.
+3. **Online pattern classification**: classify noisy streamed patterns from the reward signal
+   alone, with no labeled training phase.
+
+`benchmarks/proof.py` runs a separate seeded comparison of a surrogate-gradient spiking DQN
+against Q-learning and random on small mazes, including a phase-2 online adaptation test on an
+unseen layout. Both scripts print exact numbers under fixed seeds so results are reproducible
+on your own hardware; they are deliberately not pre-baked into this README.
+
+## Status
+
+This is `0.1.0`, research-grade and early. The native Rust workspace
+(`engram-core`, `engram-modules`, `engram-runtime`, `engram-server`, `engram-python`)
+type-checks clean with `cargo check --workspace`. The core has unit tests for neuron dynamics,
+STDP eligibility accumulation, and reward-driven weight change. The composable `Brain` builder,
+YAML brain configs, and hardware backends (Loihi, Akida) are roadmap items, not shipped.
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md). New learning rules and new brain regions are the most
+useful contributions; both are single-trait implementations.
 
 ## License
 
-Apache-2.0. See [`LICENSE`](LICENSE).
-
-## Citing
-
-Single-author preprint. Citation format will be added when arXiv id is assigned.
+Apache-2.0. See [LICENSE](LICENSE).
 
 ## Contact
 
-Tejas Naladala: `tejas.naladala@gmail.com`
-
-Independent reproduction is welcomed and encouraged.
+Tejas Naladala, `tejas.naladala@gmail.com`. Independent reproduction is welcome.

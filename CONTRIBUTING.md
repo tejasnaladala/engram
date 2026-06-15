@@ -56,7 +56,7 @@ cd dashboard && npm install && npm run dev
 
 ### Pull Request Process
 
-1. Fork the repo and create a branch from `master`.
+1. Fork the repo and create a branch from `main`.
 2. Add tests for new functionality.
 3. Ensure `cargo test --workspace` passes.
 4. Update documentation if needed.

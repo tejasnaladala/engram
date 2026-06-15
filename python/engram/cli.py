@@ -85,14 +85,17 @@ def dashboard(port: int):
     console.print(f"[cyan]Starting Engram server on port {port}...[/]")
     console.print(f"[green]Connect dashboard to ws://localhost:{port}/ws[/]")
 
-    # Start the Rust server binary
+    # Start the Rust server binary. Run from the current working directory,
+    # which is expected to be the repo root (where the Cargo workspace lives).
     try:
-        subprocess.run(
-            ["cargo", "run", "-p", "engram-server", "--release"],
-            cwd=r"C:\Users\tejas\engram",
-        )
+        subprocess.run(["cargo", "run", "-p", "engram-server", "--release"])
     except KeyboardInterrupt:
         console.print("\n[yellow]Server stopped.[/]")
+    except FileNotFoundError:
+        console.print(
+            "[red]cargo not found.[/] Install Rust (https://rustup.rs) and run "
+            "this command from the repository root."
+        )
 
 
 @main.command()
