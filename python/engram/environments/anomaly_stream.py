@@ -1,13 +1,11 @@
 """Streaming anomaly detection environment.
 
-Tests the system's ability to learn normal patterns and detect anomalies
-in a continuous data stream -- the exact use case where event-driven
-processing and continual learning outperform batch-trained models.
+Provides a compact stream with drift and rare anomalies for exercising
+event-driven and continual-learning behavior. It does not establish
+superiority over batch-trained baselines.
 """
 
 from __future__ import annotations
-
-from typing import Optional
 
 import numpy as np
 
@@ -20,7 +18,7 @@ class AnomalyStreamEnv:
     (distribution shift, spike, dropout). The agent must classify each
     reading as normal (action=0) or anomaly (action=1).
 
-    This is the killer use case for brain-inspired architectures:
+    The environment exposes several properties relevant to the runtime:
     - Event-driven: only process when something changes
     - Continual: normal distribution drifts over time
     - Memory: must remember what "normal" looks like
@@ -44,7 +42,7 @@ class AnomalyStreamEnv:
         anomaly_rate: float = 0.05,
         drift_rate: float = 0.001,
         readings_per_episode: int = 200,
-        seed: Optional[int] = None,
+        seed: int | None = None,
     ):
         self.sensor_dims = sensor_dims
         self.anomaly_rate = anomaly_rate

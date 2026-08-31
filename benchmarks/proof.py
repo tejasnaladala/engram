@@ -1,9 +1,9 @@
-"""Reproducible proof: Spiking DQN vs Q-Learning vs Random on maze navigation.
+"""Seeded comparison: Spiking DQN vs Q-Learning vs Random on maze navigation.
 
 Run with:
     python benchmarks/proof.py
 
-This produces exact numbers with fixed seeds showing that:
+This produces fixed-seed measurements for:
 1. The spiking neural network actually learns (success rate improves over episodes)
 2. It competes with tabular Q-learning on maze navigation
 3. Output-layer gradient fine-tuning can adapt to a new maze
@@ -117,7 +117,7 @@ def main():
     EPISODES = 150
     MAZE_SIZE = 4
 
-    print_section("ENGRAM PROOF: Spiking DQN vs Q-Learning vs Random")
+    print_section("SPIKING DQN BENCHMARK: Q-Learning and Random Baselines")
     print(f"  Maze: {MAZE_SIZE}x{MAZE_SIZE} procedural (seed={SEED})")
     print(f"  Episodes: {EPISODES}")
     print("  All seeds fixed for reproducibility")

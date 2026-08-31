@@ -2,17 +2,13 @@ use rand::SeedableRng;
 use rand_chacha::ChaCha8Rng;
 
 use engram_core::{
-    BrainModule, MemoryFormation, RuntimeSnapshot,
-    SpikeBuffer, SpikeEvent, SynapseMatrix, VetoEvent,
-    Neuromodulators, ThreeFactorSTDP, LearningRule,
+    BrainModule, LearningRule, MemoryFormation, Neuromodulators, RuntimeSnapshot, SpikeBuffer,
+    SpikeEvent, SynapseMatrix, ThreeFactorSTDP, VetoEvent,
 };
 use engram_modules::{
-    action_selector::ActionSelector,
-    associative_memory::AssociativeMemory,
-    episodic_memory::EpisodicMemory,
-    predictive_error::PredictiveError,
-    safety_kernel::SafetyKernel,
-    sensory_encoder::SensoryEncoder,
+    action_selector::ActionSelector, associative_memory::AssociativeMemory,
+    episodic_memory::EpisodicMemory, predictive_error::PredictiveError,
+    safety_kernel::SafetyKernel, sensory_encoder::SensoryEncoder,
 };
 
 use crate::config::RuntimeConfig;
@@ -146,8 +142,8 @@ impl EngramRuntime {
             config.assoc_neurons,
             action_count,
             syn_assoc_to_action.nnz(),
-            500.0,  // shorter eligibility for action pathway
-            0.008,  // higher learning rate for action selection
+            500.0, // shorter eligibility for action pathway
+            0.008, // higher learning rate for action selection
         );
 
         Self {
@@ -228,7 +224,7 @@ impl EngramRuntime {
         self.learning_enabled
     }
 
-    /// Stable hash of learned parameters and persistent adaptive state.
+    /// Deterministic non-cryptographic fingerprint of persistent learning state.
     pub fn learning_state_hash(&self) -> u64 {
         let core_state = engram_core::checkpoint::serialize(&(
             &self.syn_sensory_to_assoc,
@@ -241,7 +237,7 @@ impl EngramRuntime {
             &self.learn_assoc_to_action,
             self.reward_baseline.to_bits(),
         ))
-        .unwrap_or_default();
+        .expect("serializing core learning state should succeed");
         let chunks = [
             core_state,
             self.associative.learning_state_bytes(),
@@ -252,7 +248,11 @@ impl EngramRuntime {
 
         let mut hash = 0xcbf29ce484222325_u64;
         for chunk in chunks {
-            for byte in (chunk.len() as u64).to_le_bytes().iter().chain(chunk.iter()) {
+            for byte in (chunk.len() as u64)
+                .to_le_bytes()
+                .iter()
+                .chain(chunk.iter())
+            {
                 hash ^= u64::from(*byte);
                 hash = hash.wrapping_mul(0x100000001b3);
             }
@@ -271,6 +271,11 @@ impl EngramRuntime {
         let dt = self.config.dt;
         let sim_time = self.sim_time;
 
+        // Feedback belongs to the action completed before this tick. Apply it
+        // to the existing eligibility traces before new observation/action
+        // spikes can enter those traces.
+        self.apply_pending_reward();
+
         // === STEP 1: Sensory Encoding ===
         let sensory_spikes = self.sensory.step(dt, sim_time, &[]);
         self.spike_buffer.extend(sensory_spikes.iter().cloned());
@@ -288,9 +293,7 @@ impl EngramRuntime {
         // === STEP 3: Route to Predictive Error (actual) ===
         let pred_inputs = self.syn_sensory_to_pred.propagate(&sensory_ids);
         for (post_id, current) in &pred_inputs {
-            self.predictive
-                .population
-                .deliver_input(*post_id, *current);
+            self.predictive.population.deliver_input(*post_id, *current);
         }
 
         // === STEP 4: Associative Memory Step ===
@@ -301,9 +304,7 @@ impl EngramRuntime {
         let assoc_ids: Vec<u32> = assoc_spikes.iter().map(|s| s.neuron_id).collect();
         let pred_from_assoc = self.syn_assoc_to_pred.propagate(&assoc_ids);
         for (post_id, current) in &pred_from_assoc {
-            self.predictive
-                .population
-                .deliver_input(*post_id, *current);
+            self.predictive.population.deliver_input(*post_id, *current);
         }
 
         // === STEP 5: Predictive Error Step ===
@@ -312,17 +313,10 @@ impl EngramRuntime {
         let pred_spikes = self.predictive.step(dt, sim_time, &pred_input_spikes);
         self.spike_buffer.extend(pred_spikes.iter().cloned());
 
-        // === STEP 6: Update Neuromodulatory Signals ===
-        if self.learning_enabled && self.reward_pending {
-            self.modulators.update(
-                self.current_reward,
-                self.predictive.error,
-                &mut self.reward_baseline,
-            );
-        } else {
-            self.modulators.reward_signal = 0.0;
-            self.modulators.surprise_signal = self.predictive.error;
-        }
+        // === STEP 6: Update the current surprise signal ===
+        // Reward modulation was consumed at the tick boundary above.
+        self.modulators.reward_signal = 0.0;
+        self.modulators.surprise_signal = self.predictive.error;
 
         // === STEP 7: Action Selection ===
         // Route associative spikes to action selector
@@ -335,16 +329,16 @@ impl EngramRuntime {
         let action_spikes = self.action_selector.step(dt, sim_time, &assoc_spikes);
         self.spike_buffer.extend(action_spikes.iter().cloned());
 
-        let proposed = self
-            .action_selector
-            .last_action
-            .clone()
-            .unwrap_or(engram_core::ProposedAction {
-                action_id: 0,
-                confidence: 0.0,
-                is_reflex: false,
-                timestamp: sim_time,
-            });
+        let proposed =
+            self.action_selector
+                .last_action
+                .clone()
+                .unwrap_or(engram_core::ProposedAction {
+                    action_id: 0,
+                    confidence: 0.0,
+                    is_reflex: false,
+                    timestamp: sim_time,
+                });
 
         // === STEP 8: Safety Evaluation ===
         let mut final_action = proposed.action_id;
@@ -358,7 +352,6 @@ impl EngramRuntime {
                 self.pending_vetoes.push(veto);
                 final_action = 0; // default safe action
             }
-
         }
 
         self.current_action = Some(final_action);
@@ -390,10 +383,8 @@ impl EngramRuntime {
         }
 
         // === Update Metrics ===
-        let total_spikes = sensory_spikes.len()
-            + assoc_spikes.len()
-            + pred_spikes.len()
-            + action_spikes.len();
+        let total_spikes =
+            sensory_spikes.len() + assoc_spikes.len() + pred_spikes.len() + action_spikes.len();
         self.tracker.record_spikes(total_spikes as u64);
         self.tracker.record_tick();
         self.tracker.add_energy(total_spikes as f64 * 0.001);
@@ -413,8 +404,6 @@ impl EngramRuntime {
             .extend(self.associative.take_formations());
         self.pending_formations
             .extend(self.episodic.take_formations());
-
-        self.clear_pending_reward();
 
         final_action
     }
@@ -457,7 +446,7 @@ impl EngramRuntime {
         );
     }
 
-    fn flush_pending_reward(&mut self) {
+    fn apply_pending_reward(&mut self) {
         if !self.reward_pending {
             return;
         }
@@ -491,8 +480,12 @@ impl EngramRuntime {
             self.safety.snapshot(),
         ];
 
-        let recent_spikes: Vec<SpikeEvent> =
-            self.spike_buffer.recent(50.0, self.sim_time).into_iter().cloned().collect();
+        let recent_spikes: Vec<SpikeEvent> = self
+            .spike_buffer
+            .recent(50.0, self.sim_time)
+            .into_iter()
+            .cloned()
+            .collect();
 
         let vetoes = std::mem::take(&mut self.pending_vetoes);
         let formations = std::mem::take(&mut self.pending_formations);
@@ -512,7 +505,7 @@ impl EngramRuntime {
 
     /// Reset all modules for a new episode
     pub fn reset_episode(&mut self) {
-        self.flush_pending_reward();
+        self.apply_pending_reward();
         self.sensory.reset();
         self.predictive.reset();
         // Don't reset associative memory -- it persists across episodes
@@ -525,11 +518,8 @@ impl EngramRuntime {
 
     /// Full reset including memories
     pub fn full_reset(&mut self) {
-        self.reset_episode();
-        self.associative.reset();
-        self.sim_time = 0.0;
-        self.total_reward = 0.0;
-        self.tracker.reset();
+        let config = self.config.clone();
+        *self = Self::new(config);
     }
 
     /// Get current prediction error
@@ -638,5 +628,62 @@ mod tests {
         runtime.reset_episode();
 
         assert_eq!(runtime.learning_state_hash(), before);
+    }
+
+    #[test]
+    fn pending_reward_is_applied_before_next_tick_spikes() {
+        let mut runtime = EngramRuntime::new(tiny_config());
+        runtime.set_observation(&[0.95, 0.85]);
+        for _ in 0..20 {
+            runtime.step();
+        }
+
+        let mut explicitly_flushed = runtime.clone();
+        explicitly_flushed.set_reward(1.0);
+        explicitly_flushed.apply_pending_reward();
+
+        let mut advanced = runtime.clone();
+        advanced.set_reward(1.0);
+        advanced.set_observation(&[0.05, 0.15]);
+        advanced.step();
+
+        assert_eq!(
+            advanced.syn_sensory_to_assoc.values,
+            explicitly_flushed.syn_sensory_to_assoc.values,
+        );
+        assert_eq!(
+            advanced.syn_sensory_to_pred.values,
+            explicitly_flushed.syn_sensory_to_pred.values,
+        );
+        assert_eq!(
+            advanced.syn_assoc_to_pred.values,
+            explicitly_flushed.syn_assoc_to_pred.values,
+        );
+        assert_eq!(
+            advanced.syn_assoc_to_action.values,
+            explicitly_flushed.syn_assoc_to_action.values,
+        );
+    }
+
+    #[test]
+    fn full_reset_restores_the_seeded_learning_state() {
+        let config = tiny_config();
+        let initial = EngramRuntime::new(config.clone());
+        let initial_hash = initial.learning_state_hash();
+        let mut runtime = EngramRuntime::new(config);
+
+        runtime.set_observation(&[0.95, 0.85]);
+        runtime.step();
+        runtime.set_reward(-1.0);
+        assert_ne!(runtime.learning_state_hash(), initial_hash);
+
+        runtime.set_learning_enabled(false);
+        runtime.full_reset();
+
+        assert_eq!(runtime.learning_state_hash(), initial_hash);
+        assert!(runtime.learning_enabled());
+        assert_eq!(runtime.total_reward, 0.0);
+        assert_eq!(runtime.sim_time, 0.0);
+        assert!(!runtime.has_pending_reward());
     }
 }

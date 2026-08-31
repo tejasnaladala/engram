@@ -1,13 +1,14 @@
-"""Spiking DQN with surrogate gradients -- the training engine that actually works.
+"""Experimental Spiking DQN with surrogate-gradient training.
 
-This implements the proven recipe from the spiking RL literature:
+This combines a conventional DQN loop with spiking hidden layers:
 - LIF neurons with surrogate gradients (arctangent) for backpropagation
 - Non-spiking leaky integrator output neurons (membrane voltage = Q-values)
 - Experience replay buffer
 - Target network for stability
 - Soft reset mechanism
 
-Based on DSQN (Chen et al. 2022) which beat standard DQN on 17 Atari games.
+The design is inspired by DSQN (Chen et al. 2022); this implementation does not
+claim to reproduce that paper's Atari results.
 
 Phase 1: Train with surrogate gradients (standard DQN loop)
 Phase 2: Fine-tune the output layer with SGD and backpropagation

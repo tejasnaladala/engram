@@ -1,6 +1,6 @@
 use engram_core::{
-    BrainModule, LIFParams, ModuleId, ModuleSnapshot, NeuronPopulation, ProposedAction,
-    SpikeEvent, SimTime, VetoEvent, VetoReason,
+    BrainModule, LIFParams, ModuleId, ModuleSnapshot, NeuronPopulation, ProposedAction, SimTime,
+    SpikeEvent, VetoEvent, VetoReason,
 };
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -57,12 +57,12 @@ pub struct SafetyKernel {
 impl SafetyKernel {
     pub fn new(num_neurons: usize) -> Self {
         let params = LIFParams {
-            tau_m: 5.0,       // very fast -- safety must be responsive
+            tau_m: 5.0, // very fast -- safety must be responsive
             v_rest: -65.0,
             v_threshold: -60.0, // low threshold -- sensitive
             v_reset: -70.0,
             r_membrane: 20.0,
-            refractory_ms: 0.5,  // very short refractory
+            refractory_ms: 0.5, // very short refractory
         };
 
         Self {
@@ -104,9 +104,7 @@ impl SafetyKernel {
             match &constraint.constraint_type {
                 ConstraintType::ForbidCellType(cell_type) => {
                     // Check if the action would move into a forbidden cell
-                    if let Some(target_cell) =
-                        self.get_target_cell(action.action_id)
-                    {
+                    if let Some(target_cell) = self.get_target_cell(action.action_id) {
                         if target_cell == *cell_type {
                             return Some(VetoEvent {
                                 timestamp: sim_time,
@@ -171,10 +169,7 @@ impl SafetyKernel {
         let state_hash = self.hash_state();
         let confidence_delta = (-negative_reward * 0.1).min(0.3) as f32;
 
-        let entry = self
-            .learned_inhibitions
-            .entry(state_hash)
-            .or_insert_with(Vec::new);
+        let entry = self.learned_inhibitions.entry(state_hash).or_default();
 
         if let Some(existing) = entry.iter_mut().find(|(a, _)| *a == action_id) {
             existing.1 = (existing.1 + confidence_delta).min(1.0);
@@ -209,7 +204,7 @@ impl SafetyKernel {
             inhibitions,
             self.inhibition_threshold.to_bits(),
         ))
-        .unwrap_or_default()
+        .expect("serializing safety learning state should succeed")
     }
 
     fn hash_state(&self) -> u64 {
@@ -237,7 +232,7 @@ impl SafetyKernel {
         };
         let nx = x + dx;
         let ny = y + dy;
-        if nx < 0 || ny < 0 || nx >= w || ny >= w as i32 {
+        if nx < 0 || ny < 0 || nx >= w || ny >= w {
             return None;
         }
         let idx = (ny * w + nx) as usize;
@@ -254,7 +249,8 @@ impl BrainModule for SafetyKernel {
         // Drive safety neurons from incoming danger signals
         for spike in incoming {
             let idx = spike.neuron_id as usize % self.population.len();
-            self.population.deliver_input(idx as u32, spike.strength as f64 * 3.0);
+            self.population
+                .deliver_input(idx as u32, spike.strength as f64 * 3.0);
         }
 
         let spiked = self.population.step(dt, sim_time);

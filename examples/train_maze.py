@@ -23,7 +23,7 @@ def main() -> None:
 
     print(f"Maze: {env.width}x{env.height} (grid: {env.maze_w}x{env.maze_h})")
     print(f"Agent starts at (1,1), goal at ({env.goal_x},{env.goal_y})")
-    print(f"Example maze:")
+    print("Example maze:")
     print(env.render())
     print()
 

@@ -1,5 +1,5 @@
-use pyo3::prelude::*;
 use engram_runtime::{EngramRuntime, RuntimeConfig};
+use pyo3::prelude::*;
 
 /// Python wrapper for the Engram cognitive runtime
 #[pyclass]
@@ -43,7 +43,7 @@ impl PyRuntime {
         self.runtime.learning_enabled()
     }
 
-    /// Hash learned parameters and persistent adaptive state.
+    /// Deterministic non-cryptographic fingerprint of persistent learning state.
     fn learning_state_hash(&self) -> u64 {
         self.runtime.learning_state_hash()
     }

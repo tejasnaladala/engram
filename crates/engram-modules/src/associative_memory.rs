@@ -1,10 +1,10 @@
 use engram_core::{
-    BrainModule, LIFParams, ModuleId, ModuleSnapshot, NeuronPopulation, SpikeEvent, SimTime,
-    MemoryFormation, MemoryType,
+    BrainModule, LIFParams, MemoryFormation, MemoryType, ModuleId, ModuleSnapshot,
+    NeuronPopulation, SimTime, SpikeEvent,
 };
 use rand::Rng;
-use rand_chacha::ChaCha8Rng;
 use rand::SeedableRng;
+use rand_chacha::ChaCha8Rng;
 use serde::{Deserialize, Serialize};
 
 /// Sparse Distributed Memory (SDM) based associative memory.
@@ -38,12 +38,6 @@ pub struct AssociativeMemory {
     seed: u64,
     #[serde(default = "default_learning_enabled")]
     learning_enabled: bool,
-    #[serde(skip, default = "default_rng")]
-    rng: ChaCha8Rng,
-}
-
-fn default_rng() -> ChaCha8Rng {
-    ChaCha8Rng::seed_from_u64(0)
 }
 
 fn default_learning_enabled() -> bool {
@@ -82,7 +76,6 @@ impl AssociativeMemory {
             recent_spike_count: 0,
             seed,
             learning_enabled: true,
-            rng,
         }
     }
 
@@ -137,8 +130,8 @@ impl AssociativeMemory {
             let dist = self.hamming_distance(query, loc);
             if dist <= self.access_radius {
                 let base = loc * self.data_width;
-                for i in 0..self.data_width {
-                    sum[i] += self.counters[base + i] as i64;
+                for (i, value) in sum.iter_mut().enumerate() {
+                    *value += self.counters[base + i] as i64;
                 }
             }
         }
@@ -158,7 +151,7 @@ impl AssociativeMemory {
     /// Deterministic bytes for persistent memory-state verification.
     pub fn learning_state_bytes(&self) -> Vec<u8> {
         engram_core::checkpoint::serialize(&(&self.counters, self.write_count))
-            .unwrap_or_default()
+            .expect("serializing associative learning state should succeed")
     }
 }
 
@@ -194,7 +187,8 @@ impl BrainModule for AssociativeMemory {
         // Also drive neurons from incoming spikes directly
         for spike in incoming {
             let idx = spike.neuron_id as usize % self.population.len();
-            self.population.deliver_input(idx as u32, spike.strength as f64 * 3.0);
+            self.population
+                .deliver_input(idx as u32, spike.strength as f64 * 3.0);
         }
 
         // Step neurons

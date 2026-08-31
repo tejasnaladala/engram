@@ -1,6 +1,6 @@
-use serde::{Deserialize, Serialize};
 use crate::synapse::SynapseMatrix;
 use crate::types::Weight;
+use serde::{Deserialize, Serialize};
 
 /// Global neuromodulatory signals that influence learning across the network.
 /// Inspired by dopamine (reward), acetylcholine (attention), norepinephrine
@@ -162,9 +162,15 @@ impl LearningRule for ThreeFactorSTDP {
         let post_decay = (-dt / self.tau_minus).exp();
         let elig_decay = (-dt / self.tau_eligibility).exp();
 
-        for t in &mut self.pre_traces { *t *= pre_decay; }
-        for t in &mut self.post_traces { *t *= post_decay; }
-        for e in &mut self.eligibility { *e *= elig_decay; }
+        for t in &mut self.pre_traces {
+            *t *= pre_decay;
+        }
+        for t in &mut self.post_traces {
+            *t *= post_decay;
+        }
+        for e in &mut self.eligibility {
+            *e *= elig_decay;
+        }
 
         // === Phase 2: Compute STDP and accumulate into eligibility traces ===
 
@@ -268,11 +274,19 @@ impl LearningRule for HebbianRule {
         _modulators: &Neuromodulators,
     ) {
         let decay = (-dt / self.tau).exp();
-        for t in &mut self.pre_traces { *t *= decay; }
-        for t in &mut self.post_traces { *t *= decay; }
+        for t in &mut self.pre_traces {
+            *t *= decay;
+        }
+        for t in &mut self.post_traces {
+            *t *= decay;
+        }
 
-        for &pid in pre_spikes { self.pre_traces[pid as usize] = 1.0; }
-        for &pid in post_spikes { self.post_traces[pid as usize] = 1.0; }
+        for &pid in pre_spikes {
+            self.pre_traces[pid as usize] = 1.0;
+        }
+        for &pid in post_spikes {
+            self.post_traces[pid as usize] = 1.0;
+        }
 
         // Strengthen connections where both pre and post are active
         for &post_id in post_spikes {
@@ -291,7 +305,9 @@ impl LearningRule for HebbianRule {
         self.post_traces.fill(0.0);
     }
 
-    fn name(&self) -> &'static str { "Hebbian" }
+    fn name(&self) -> &'static str {
+        "Hebbian"
+    }
 }
 
 #[cfg(test)]
@@ -314,7 +330,10 @@ mod tests {
 
         // Some eligibility traces should be non-zero
         let has_nonzero = rule.eligibility.iter().any(|&e| e.abs() > 1e-6);
-        assert!(has_nonzero, "Eligibility traces should accumulate from spike pairs");
+        assert!(
+            has_nonzero,
+            "Eligibility traces should accumulate from spike pairs"
+        );
     }
 
     #[test]
@@ -322,7 +341,6 @@ mod tests {
         let mut rng = ChaCha8Rng::seed_from_u64(42);
         let mut syn = SynapseMatrix::random_sparse(4, 4, 1.0, 0.5, &mut rng);
         syn.sort_rows();
-        let initial_weights: Vec<f32> = syn.values.clone();
         let mut rule = ThreeFactorSTDP::new(4, 4, syn.nnz());
 
         // Build up eligibility
@@ -334,14 +352,22 @@ mod tests {
         let pre_reward_weights: Vec<f32> = syn.values.clone();
 
         // Now deliver reward signal
-        let mut mods = Neuromodulators::default();
-        mods.reward_signal = 1.0; // strong positive reward
+        let mods = Neuromodulators {
+            reward_signal: 1.0,
+            ..Neuromodulators::default()
+        };
         rule.apply(1.0, &mut syn, &[], &[], &mods);
 
         // Weights should change in the direction of eligibility
-        let changed = syn.values.iter().zip(pre_reward_weights.iter())
+        let changed = syn
+            .values
+            .iter()
+            .zip(pre_reward_weights.iter())
             .any(|(a, b)| (a - b).abs() > 1e-6);
-        assert!(changed, "Reward should drive weight changes via eligibility traces");
+        assert!(
+            changed,
+            "Reward should drive weight changes via eligibility traces"
+        );
     }
 
     #[test]
@@ -351,12 +377,18 @@ mod tests {
 
         // Positive surprise
         mods.update(1.0, 0.5, &mut baseline);
-        assert!(mods.reward_signal > 0.0, "Positive reward should give positive RPE");
+        assert!(
+            mods.reward_signal > 0.0,
+            "Positive reward should give positive RPE"
+        );
         assert!(mods.arousal_signal > 0.0, "Reward should increase arousal");
 
         // After baseline adjusts, same reward gives smaller RPE
         let first_rpe = mods.reward_signal;
         mods.update(1.0, 0.5, &mut baseline);
-        assert!(mods.reward_signal < first_rpe, "RPE should decrease as baseline adapts");
+        assert!(
+            mods.reward_signal < first_rpe,
+            "RPE should decrease as baseline adapts"
+        );
     }
 }

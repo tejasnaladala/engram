@@ -126,6 +126,7 @@ class Trainer:
         """
         result = TrainingResult()
         start = time.time()
+        spikes_before = self.brain.total_spikes
 
         for ep in range(episodes):
             ep_result = self._run_episode(ep)
@@ -149,7 +150,7 @@ class Trainer:
                 )
 
         result.wall_time_s = time.time() - start
-        result.total_spikes = self.brain.total_spikes
+        result.total_spikes = self.brain.total_spikes - spikes_before
         return result
 
     def _run_episode(self, episode_num: int) -> EpisodeResult:

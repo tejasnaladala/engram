@@ -47,8 +47,8 @@ The native Engram runtime learns the way a nervous system does:
   inhibitions learned from past negative outcomes.
 
 The tradeoff is honest: this is sample-hungry online learning on small networks, not a way to
-top a benchmark leaderboard. It is built for systems that have to keep adapting after they
-ship, where you care more about behavior over time than about a single converged number.
+top a benchmark leaderboard. It is intended for experiments where behavior over time matters
+more than a single converged number; the current release is not production-validated.
 
 ## Core abstractions
 
@@ -192,7 +192,7 @@ Design choices worth calling out:
 
 - **Rust core, Python skin.** Spike processing is hot; the ergonomics live in Python.
 - **Sparse by default.** Synapses are CSR, and the loop processes spikes as events rather than
-  dense tensors, which pays off at the high sparsity these networks run at.
+  representing every connection as a dense tensor. Performance remains workload-dependent.
 - **Memory persists across episodes.** `reset_episode()` clears transient neuron state but
   leaves associative memory and learned safety inhibitions intact. A full wipe is a separate
   `reset()`.
@@ -222,8 +222,8 @@ target what online local learning is supposed to be good at:
 `benchmarks/proof.py` runs a separate seeded comparison of a surrogate-gradient spiking DQN
 against Q-learning and random on small mazes. Its second phase fine-tunes the output layer with
 SGD and backpropagation on an unseen layout; it is not an update-free recall test or a local
-plasticity result. Both scripts print exact numbers under fixed seeds so results are
-reproducible on your own hardware; they are deliberately not pre-baked into this README.
+plasticity result. Both scripts report fixed-seed measurements so runs can be compared on
+your own hardware; they are deliberately not pre-baked into this README.
 
 ## Status
 

@@ -235,6 +235,6 @@ mod tests {
         let mut rng = ChaCha8Rng::seed_from_u64(42);
         let mut mat = SynapseMatrix::random_sparse(5, 5, 1.0, 2.0, &mut rng);
         mat.clamp_weights(0.0, 1.0);
-        assert!(mat.values.iter().all(|&w| w >= 0.0 && w <= 1.0));
+        assert!(mat.values.iter().all(|&w| (0.0..=1.0).contains(&w)));
     }
 }

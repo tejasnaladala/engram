@@ -41,7 +41,7 @@ mod tests {
             total_vetoes: 5,
             active_synapses: 50000,
             memory_bytes: 1024 * 1024,
-            energy_units: 3.14,
+            energy_units: std::f64::consts::PI,
         };
         let bytes = serialize(&metrics).unwrap();
         let restored: RuntimeMetrics = deserialize(&bytes).unwrap();

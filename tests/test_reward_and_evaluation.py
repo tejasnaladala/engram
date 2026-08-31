@@ -95,7 +95,7 @@ class ProbeBrain:
 
     @property
     def total_spikes(self):
-        return 0
+        return self.step_calls
 
 
 class RewardSemanticsTests(unittest.TestCase):
@@ -141,6 +141,16 @@ class FrozenEvaluationTests(unittest.TestCase):
             brain.last_evaluation_copy.learning_state_hash,
             original_hash,
         )
+
+    def test_evaluation_reports_only_spikes_from_the_evaluation_run(self):
+        brain = ProbeBrain()
+        trainer = Trainer(brain, TwoStepEnvironment(), ticks_per_step=2)
+        trainer.train(episodes=1)
+
+        result = trainer.evaluate(episodes=1)
+
+        self.assertEqual(brain.total_spikes, 4)
+        self.assertEqual(result.total_spikes, 4)
 
 
 if __name__ == "__main__":

@@ -1,6 +1,6 @@
 use engram_core::{
-    BrainModule, LIFParams, ModuleId, ModuleSnapshot, NeuronPopulation, SpikeEvent, SimTime,
-    MemoryFormation, MemoryType,
+    BrainModule, LIFParams, MemoryFormation, MemoryType, ModuleId, ModuleSnapshot,
+    NeuronPopulation, SimTime, SpikeEvent,
 };
 use serde::{Deserialize, Serialize};
 
@@ -183,7 +183,7 @@ impl EpisodicMemory {
     /// Deterministic bytes for persistent episodic-memory verification.
     pub fn learning_state_bytes(&self) -> Vec<u8> {
         engram_core::checkpoint::serialize(&(&self.episodes, &self.current_episode))
-            .unwrap_or_default()
+            .expect("serializing episodic learning state should succeed")
     }
 }
 
@@ -235,7 +235,8 @@ impl BrainModule for EpisodicMemory {
         // Pass through incoming spikes to neurons
         for spike in incoming {
             let idx = spike.neuron_id as usize % self.population.len();
-            self.population.deliver_input(idx as u32, spike.strength as f64 * 2.0);
+            self.population
+                .deliver_input(idx as u32, spike.strength as f64 * 2.0);
         }
 
         // Step neurons

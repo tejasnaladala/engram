@@ -36,8 +36,7 @@ impl MetricsTracker {
             if let Some(last) = self.last_measure {
                 let elapsed = now.duration_since(last).as_secs_f64();
                 if elapsed > 0.0 {
-                    self.metrics.ticks_per_second =
-                        self.ticks_since_measure as f64 / elapsed;
+                    self.metrics.ticks_per_second = self.ticks_since_measure as f64 / elapsed;
                 }
             }
             self.last_measure = Some(now);

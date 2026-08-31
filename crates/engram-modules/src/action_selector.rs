@@ -1,6 +1,6 @@
 use engram_core::{
-    BrainModule, LIFParams, ModuleId, ModuleSnapshot, NeuronPopulation, ProposedAction,
-    SpikeEvent, SimTime,
+    BrainModule, LIFParams, ModuleId, ModuleSnapshot, NeuronPopulation, ProposedAction, SimTime,
+    SpikeEvent,
 };
 use rand::Rng;
 use rand::SeedableRng;
@@ -53,10 +53,10 @@ impl ActionSelector {
     pub fn new(num_actions: usize, neurons_per_action: usize) -> Self {
         let total = num_actions * neurons_per_action;
         let params = LIFParams {
-            tau_m: 10.0,     // fast -- actions should be decisive
+            tau_m: 10.0, // fast -- actions should be decisive
             v_rest: -65.0,
             v_threshold: -55.0,
-            v_reset: -72.0,  // deeper reset for sharper competition
+            v_reset: -72.0, // deeper reset for sharper competition
             r_membrane: 12.0,
             refractory_ms: 2.0,
         };
@@ -114,7 +114,7 @@ impl ActionSelector {
             self.epsilon.to_bits(),
             self.temperature.to_bits(),
         ))
-        .unwrap_or_default()
+        .expect("serializing action-selector learning state should succeed")
     }
 
     fn pattern_hash(&self, spikes: &[SpikeEvent]) -> u64 {

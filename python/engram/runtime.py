@@ -73,7 +73,7 @@ class Runtime:
 
     @property
     def learning_state_hash(self) -> str:
-        """Stable hash of learned parameters and persistent adaptive state."""
+        """Deterministic non-cryptographic fingerprint of persistent learning state."""
         return f"{self._rt.learning_state_hash():016x}"
 
     def end_episode(self) -> None:

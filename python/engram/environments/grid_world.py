@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import random
-from typing import Optional
 
 import numpy as np
 
@@ -44,7 +43,7 @@ class GridWorldEnv:
         size: int = 12,
         num_walls: int = 15,
         num_hazards: int = 5,
-        seed: Optional[int] = None,
+        seed: int | None = None,
     ):
         self.size = size
         self.num_walls = num_walls
@@ -101,7 +100,7 @@ class GridWorldEnv:
         # Place target reward
         self.grid[self.target_y, self.target_x] = REWARD
 
-    def reset(self, seed: Optional[int] = None) -> list[float]:
+    def reset(self, seed: int | None = None) -> list[float]:
         """Reset the environment."""
         if seed is not None:
             self.rng = random.Random(seed)
