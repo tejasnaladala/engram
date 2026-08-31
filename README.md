@@ -4,9 +4,10 @@ An open-source framework for building systems that learn continuously from exper
 
 Engram is a cognitive runtime, not a model. You wire together brain regions with plastic
 pathways, feed it a stream of observations and rewards, and it adapts online while it runs.
-There is no training phase and no inference phase, no optimizer, and no backward pass. Each
-connection updates itself from local activity and a global neuromodulatory signal, the way
-biological synapses are thought to.
+The native runtime has no optimizer or backward pass. Each connection updates itself from
+local activity and a global neuromodulatory signal, the way biological synapses are thought
+to. The repository also contains a separate experimental Spiking DQN that does use PyTorch
+surrogate-gradient backpropagation and replay; claims about local learning do not apply to it.
 
 The core is Rust. The API you actually touch is Python (via PyO3). There is a React
 "Observatory" dashboard that streams the network's internal state at 30fps, and a WebAssembly
@@ -22,21 +23,21 @@ result = Trainer(brain, env).train(episodes=200)
 print(result.summary())
 ```
 
-## Why this is not another backprop framework
+## Why the native runtime is not another backprop framework
 
 A standard deep-learning stack collects a batch, computes a loss, and pushes gradients
 backward through the whole graph. The weights are frozen at deployment. Adapting to a new
 distribution means stopping, retraining, and redeploying.
 
-Engram learns the way a nervous system does:
+The native Engram runtime learns the way a nervous system does:
 
 - **No backward pass.** Every pathway carries its own `LearningRule`. A synapse changes
   because the neurons on either side of it fired in a particular order, scaled by a global
   reward/surprise signal. Credit assignment is local in space and resolved over time through
   eligibility traces, not by differentiating a loss.
-- **No separate train/eval split.** The brain is always learning. `Runtime.step()` observes,
-  thinks, acts, and updates weights in one call. Adaptation happens during deployment, on the
-  CPU, with no replay of a frozen checkpoint.
+- **Online by default, frozen when requested.** `Runtime.step()` observes, thinks, acts, and
+  updates local state while learning is enabled. `Trainer.evaluate()` instead runs an isolated
+  copy with persistent updates disabled and verifies that its learning-state hash is unchanged.
 - **Memory is a first-class structure, not a context window.** Associative memory (a
   sparse-distributed store) and episodic memory (a replay buffer that consolidates during
   quiet periods) persist across episodes by design. The runtime deliberately does *not* reset
@@ -138,8 +139,8 @@ done = False
 while not done:
     action = brain.step(obs)            # encode -> think -> select -> safety-gate
     obs, reward, done, info = env.step(action)
-    brain.reward(reward)                # delivered to the modulator on the next tick
-brain.end_episode()                     # resets transient state, keeps learned memory
+    brain.reward(reward)                # one incremental feedback event
+brain.end_episode()                     # flushes terminal feedback; keeps learned memory
 ```
 
 There is also a CLI installed with the package:
@@ -213,15 +214,16 @@ It pits the Engram runtime against tabular Q-learning and a random baseline on t
 target what online local learning is supposed to be good at:
 
 1. **Grid-world navigation**: reach the goal, avoid walls and hazards.
-2. **Continual learning**: train on layout A, then layout B, then re-test A *without
-   retraining*, to measure catastrophic forgetting.
+2. **Continual learning**: train on layout A, then layout B, then re-test A with learning
+   disabled and a learning-state hash check, to measure catastrophic forgetting.
 3. **Online pattern classification**: classify noisy streamed patterns from the reward signal
    alone, with no labeled training phase.
 
 `benchmarks/proof.py` runs a separate seeded comparison of a surrogate-gradient spiking DQN
-against Q-learning and random on small mazes, including a phase-2 online adaptation test on an
-unseen layout. Both scripts print exact numbers under fixed seeds so results are reproducible
-on your own hardware; they are deliberately not pre-baked into this README.
+against Q-learning and random on small mazes. Its second phase fine-tunes the output layer with
+SGD and backpropagation on an unseen layout; it is not an update-free recall test or a local
+plasticity result. Both scripts print exact numbers under fixed seeds so results are
+reproducible on your own hardware; they are deliberately not pre-baked into this README.
 
 ## Status
 

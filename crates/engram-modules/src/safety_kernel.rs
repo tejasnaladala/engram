@@ -188,6 +188,30 @@ impl SafetyKernel {
         std::mem::take(&mut self.recent_vetoes)
     }
 
+    /// Deterministic bytes for persistent safety-policy verification.
+    pub fn learning_state_bytes(&self) -> Vec<u8> {
+        let mut inhibitions: Vec<(u64, Vec<(u32, u32)>)> = self
+            .learned_inhibitions
+            .iter()
+            .map(|(&state, actions)| {
+                let mut actions: Vec<(u32, u32)> = actions
+                    .iter()
+                    .map(|&(action, confidence)| (action, confidence.to_bits()))
+                    .collect();
+                actions.sort_unstable();
+                (state, actions)
+            })
+            .collect();
+        inhibitions.sort_unstable_by_key(|(state, _)| *state);
+
+        engram_core::checkpoint::serialize(&(
+            &self.hard_constraints,
+            inhibitions,
+            self.inhibition_threshold.to_bits(),
+        ))
+        .unwrap_or_default()
+    }
+
     fn hash_state(&self) -> u64 {
         let mut hash: u64 = 0;
         for (i, &val) in self.current_state.iter().enumerate().take(8) {

@@ -35,12 +35,18 @@ pub struct ActionSelector {
     /// Epsilon-greedy exploration rate (decays over time)
     pub epsilon: f64,
     recent_spike_count: u32,
+    #[serde(default = "default_learning_enabled")]
+    learning_enabled: bool,
     #[serde(skip, default = "default_action_rng")]
     rng: ChaCha8Rng,
 }
 
 fn default_action_rng() -> ChaCha8Rng {
     ChaCha8Rng::seed_from_u64(0)
+}
+
+fn default_learning_enabled() -> bool {
+    true
 }
 
 impl ActionSelector {
@@ -66,6 +72,7 @@ impl ActionSelector {
             temperature: 1.0,
             epsilon: 0.3, // start with 30% random exploration
             recent_spike_count: 0,
+            learning_enabled: true,
             rng: ChaCha8Rng::seed_from_u64(42),
         }
     }
@@ -82,8 +89,32 @@ impl ActionSelector {
 
     /// Learn a reflex: associate a spike pattern with an action
     pub fn learn_reflex(&mut self, spikes: &[SpikeEvent], action_id: u32) {
+        if !self.learning_enabled {
+            return;
+        }
         let hash = self.pattern_hash(spikes);
         self.reflex_map.insert(hash, action_id);
+    }
+
+    /// Enable or disable policy updates such as epsilon decay and reflex learning.
+    pub fn set_learning_enabled(&mut self, enabled: bool) {
+        self.learning_enabled = enabled;
+    }
+
+    /// Deterministic bytes for persistent policy-state verification.
+    pub fn learning_state_bytes(&self) -> Vec<u8> {
+        let mut reflexes: Vec<(u64, u32)> = self
+            .reflex_map
+            .iter()
+            .map(|(&pattern, &action)| (pattern, action))
+            .collect();
+        reflexes.sort_unstable();
+        engram_core::checkpoint::serialize(&(
+            reflexes,
+            self.epsilon.to_bits(),
+            self.temperature.to_bits(),
+        ))
+        .unwrap_or_default()
     }
 
     fn pattern_hash(&self, spikes: &[SpikeEvent]) -> u64 {
@@ -100,7 +131,9 @@ impl ActionSelector {
         if self.rng.random::<f64>() < self.epsilon {
             let action_id = self.rng.random_range(0..self.num_actions as u32);
             // Decay epsilon over time (minimum 5% exploration)
-            self.epsilon = (self.epsilon * 0.9995).max(0.05);
+            if self.learning_enabled {
+                self.epsilon = (self.epsilon * 0.9995).max(0.05);
+            }
             return ProposedAction {
                 action_id,
                 confidence: 0.0,

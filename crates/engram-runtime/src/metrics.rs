@@ -2,11 +2,18 @@ use engram_core::RuntimeMetrics;
 use std::time::Instant;
 
 /// Tracks performance metrics for the runtime
+#[derive(Clone)]
 pub struct MetricsTracker {
     pub metrics: RuntimeMetrics,
     last_measure: Option<Instant>,
     ticks_since_measure: u64,
     measure_interval_ticks: u64,
+}
+
+impl Default for MetricsTracker {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl MetricsTracker {

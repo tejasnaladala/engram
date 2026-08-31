@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-from typing import Optional
 
 from engram._engram_native import PyRuntime
 
@@ -37,23 +36,45 @@ class Runtime:
             seed=seed,
         )
 
-    def step(self, observation: list[float], reward: float = 0.0) -> int:
+    def step(self, observation: list[float], reward: float | None = None) -> int:
         """Observe, think, and act in one call.
 
         Args:
             observation: List of float values in [0, 1].
-            reward: Reward from the previous action.
+            reward: Optional incremental reward from the previous action. Omit
+                this when feedback was already delivered through ``reward()``.
 
         Returns:
             Selected action ID.
         """
         self._rt.set_observation(observation)
-        self._rt.set_reward(reward)
+        if reward is not None:
+            self._rt.set_reward(reward)
         return self._rt.step()
 
     def reward(self, value: float) -> None:
-        """Set the reward signal for the current tick."""
+        """Deliver one incremental environment reward."""
         self._rt.set_reward(value)
+
+    def evaluation_copy(self) -> Runtime:
+        """Return an isolated runtime copy with persistent learning disabled."""
+        evaluation_runtime = object.__new__(type(self))
+        evaluation_runtime._rt = self._rt.evaluation_copy()
+        return evaluation_runtime
+
+    @property
+    def learning_enabled(self) -> bool:
+        """Whether persistent learning is enabled."""
+        return self._rt.learning_enabled()
+
+    @learning_enabled.setter
+    def learning_enabled(self, enabled: bool) -> None:
+        self._rt.set_learning_enabled(enabled)
+
+    @property
+    def learning_state_hash(self) -> str:
+        """Stable hash of learned parameters and persistent adaptive state."""
+        return f"{self._rt.learning_state_hash():016x}"
 
     def end_episode(self) -> None:
         """Signal the end of an episode (preserves learned memories)."""

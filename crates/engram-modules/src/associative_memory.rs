@@ -36,12 +36,18 @@ pub struct AssociativeMemory {
     write_count: u64,
     recent_spike_count: u32,
     seed: u64,
+    #[serde(default = "default_learning_enabled")]
+    learning_enabled: bool,
     #[serde(skip, default = "default_rng")]
     rng: ChaCha8Rng,
 }
 
 fn default_rng() -> ChaCha8Rng {
     ChaCha8Rng::seed_from_u64(0)
+}
+
+fn default_learning_enabled() -> bool {
+    true
 }
 
 impl AssociativeMemory {
@@ -75,6 +81,7 @@ impl AssociativeMemory {
             write_count: 0,
             recent_spike_count: 0,
             seed,
+            learning_enabled: true,
             rng,
         }
     }
@@ -142,6 +149,17 @@ impl AssociativeMemory {
     pub fn take_formations(&mut self) -> Vec<MemoryFormation> {
         std::mem::take(&mut self.recent_formations)
     }
+
+    /// Enable or disable persistent associative-memory writes.
+    pub fn set_learning_enabled(&mut self, enabled: bool) {
+        self.learning_enabled = enabled;
+    }
+
+    /// Deterministic bytes for persistent memory-state verification.
+    pub fn learning_state_bytes(&self) -> Vec<u8> {
+        engram_core::checkpoint::serialize(&(&self.counters, self.write_count))
+            .unwrap_or_default()
+    }
 }
 
 impl BrainModule for AssociativeMemory {
@@ -154,7 +172,7 @@ impl BrainModule for AssociativeMemory {
         let input_pattern = self.spikes_to_pattern(incoming);
 
         // Write the current pattern to memory
-        if incoming.len() > 2 {
+        if self.learning_enabled && incoming.len() > 2 {
             self.write_pattern(&input_pattern, sim_time);
         }
 

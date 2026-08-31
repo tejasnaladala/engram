@@ -6,17 +6,21 @@ Run with:
 This produces exact numbers with fixed seeds showing that:
 1. The spiking neural network actually learns (success rate improves over episodes)
 2. It competes with tabular Q-learning on maze navigation
-3. Phase 2 local adaptation works on a new maze without full retraining
+3. Output-layer gradient fine-tuning can adapt to a new maze
 """
 
-import sys, os, time, random
+import os
+import random
+import sys
+import time
+
 import numpy as np
 import torch
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from engram.spiking_dqn import SpikingDQNTrainer
 from engram.environments.maze import MazeEnv
+from engram.spiking_dqn import SpikingDQNTrainer
 
 # Fix all seeds for reproducibility
 SEED = 42
@@ -50,8 +54,10 @@ class QLearning:
     def learn(self, obs, action, reward, next_obs, done):
         k = self._key(obs)
         nk = self._key(next_obs)
-        if k not in self.q: self.q[k] = np.zeros(self.n_actions)
-        if nk not in self.q: self.q[nk] = np.zeros(self.n_actions)
+        if k not in self.q:
+            self.q[k] = np.zeros(self.n_actions)
+        if nk not in self.q:
+            self.q[nk] = np.zeros(self.n_actions)
         target = reward + (0 if done else self.gamma * np.max(self.q[nk]))
         self.q[k][action] += self.lr * (target - self.q[k][action])
         self.eps = max(0.05, self.eps * self.eps_decay)
@@ -114,12 +120,12 @@ def main():
     print_section("ENGRAM PROOF: Spiking DQN vs Q-Learning vs Random")
     print(f"  Maze: {MAZE_SIZE}x{MAZE_SIZE} procedural (seed={SEED})")
     print(f"  Episodes: {EPISODES}")
-    print(f"  All seeds fixed for reproducibility")
+    print("  All seeds fixed for reproducibility")
 
     # Show the maze
     env = MazeEnv(width=MAZE_SIZE, height=MAZE_SIZE, seed=SEED)
     env.reset()
-    print(f"\n  Maze layout:")
+    print("\n  Maze layout:")
     for line in env.render().split('\n'):
         print(f"    {line}")
 
@@ -180,19 +186,21 @@ def main():
         if ep <= len(r_rate):
             print(f"  {ep:>8} {r_rate[ep-1]*100:>7.1f}% {q_rate[ep-1]*100:>7.1f}% {s_rate[ep-1]*100:>7.1f}%")
 
-    # ── PHASE 2: ONLINE ADAPTATION ──
-    print_section("4. PHASE 2: ADAPTATION TO NEW MAZE")
-    print(f"  Training the spiking network on a NEW maze layout")
-    print(f"  using only output-layer local updates (no backprop)")
+    # ── PHASE 2: OUTPUT-LAYER GRADIENT FINE-TUNING ──
+    print_section("4. PHASE 2: OUTPUT-LAYER FINE-TUNING ON NEW MAZE")
+    print("  Fine-tuning the spiking network on a NEW maze layout")
+    print("  using output-layer SGD and backpropagation")
 
     env2 = MazeEnv(width=MAZE_SIZE, height=MAZE_SIZE, seed=99)
     env2.reset()
-    print(f"\n  New maze:")
+    print("\n  New maze:")
     for line in env2.render().split('\n'):
         print(f"    {line}")
 
     print()
-    adapt_result = spiking.adapt_phase2(env2, episodes=50, verbose=True, print_every=10)
+    adapt_result = spiking.finetune_output_layer(
+        env2, episodes=50, verbose=True, print_every=10
+    )
     print(f"\n  {adapt_result.summary()}")
 
     # ── COMPARISON TABLE ──
@@ -203,7 +211,7 @@ def main():
     print(f"  {'Success rate (last 20)':<30} {r_rate[-1]*100:>9.1f}% {q_rate[-1]*100:>9.1f}% {s_rate[-1]*100:>9.1f}%")
     print(f"  {'Avg reward (last 20)':<30} {np.mean(r_rewards[-20:]):>10.2f} {np.mean(q_rewards[-20:]):>10.2f} {np.mean(s_rewards[-20:]):>10.2f}")
     print(f"  {'Wall time':<30} {r_time:>9.1f}s {q_time:>9.1f}s {s_time:>9.1f}s")
-    print(f"  {'Phase 2 adapt (new maze)':<30} {'N/A':>10} {'N/A':>10} {adapt_result.success_rate_last_20*100:>9.1f}%")
+    print(f"  {'Output fine-tune (new maze)':<30} {'N/A':>10} {'N/A':>10} {adapt_result.success_rate_last_20*100:>9.1f}%")
 
     # ── VERDICT ──
     print_section("VERDICT")
@@ -218,9 +226,9 @@ def main():
         print("  [PARTIAL] Spiking DQN underperforms Q-Learning by >50%")
 
     if adapt_result.success_rate_last_20 > 0.3:
-        print("  [PASS] Phase 2 local adaptation works on new maze (>30% success)")
+        print("  [PASS] Output-layer fine-tuning exceeds 30% success on new maze")
     else:
-        print("  [FAIL] Phase 2 local adaptation did not succeed")
+        print("  [FAIL] Output-layer fine-tuning did not exceed 30% success")
 
     print()
 
