@@ -9,9 +9,9 @@ Usage:
 
 from __future__ import annotations
 
-import time
-import sys
 import os
+import sys
+import time
 from dataclasses import dataclass
 
 import numpy as np
@@ -22,7 +22,6 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from engram import Runtime
 from engram.environments.grid_world import GridWorldEnv
 from engram.environments.pattern_learner import PatternLearnerEnv
-
 
 # ============================================================
 # BASELINES
@@ -38,6 +37,9 @@ class RandomAgent:
         return np.random.randint(0, self.num_actions)
 
     def learn(self, obs, action, reward, next_obs, done):
+        pass
+
+    def set_learning_enabled(self, enabled: bool):
         pass
 
     def reset(self):
@@ -70,6 +72,7 @@ class QLearningAgent:
         self.epsilon = epsilon
         self.epsilon_decay = epsilon_decay
         self.epsilon_min = epsilon_min
+        self.learning_enabled = True
         # Q-table: discretized state -> action values
         self.q_table: dict[tuple, np.ndarray] = {}
 
@@ -82,13 +85,17 @@ class QLearningAgent:
         return self.q_table[state]
 
     def act(self, obs: list[float]) -> int:
-        if np.random.random() < self.epsilon:
+        if self.learning_enabled and np.random.random() < self.epsilon:
             return np.random.randint(0, self.num_actions)
         state = self._discretize(obs)
-        q_vals = self._get_q(state)
+        q_vals = self.q_table.get(state)
+        if q_vals is None:
+            q_vals = np.zeros(self.num_actions)
         return int(np.argmax(q_vals))
 
     def learn(self, obs, action, reward, next_obs, done):
+        if not self.learning_enabled:
+            return
         state = self._discretize(obs)
         next_state = self._discretize(next_obs)
         q_vals = self._get_q(state)
@@ -103,6 +110,9 @@ class QLearningAgent:
         # Keep Q-table across episodes (continual learning)
         pass
 
+    def set_learning_enabled(self, enabled: bool):
+        self.learning_enabled = enabled
+
 
 class EngramAgent:
     """Wrapper around Engram Runtime for benchmark interface."""
@@ -110,21 +120,25 @@ class EngramAgent:
     def __init__(self, input_dims: int, num_actions: int, ticks_per_step: int = 2):
         self.brain = Runtime(input_dims=input_dims, num_actions=num_actions, seed=42)
         self.ticks = ticks_per_step
-        self.prev_reward = 0.0
 
     def act(self, obs: list[float]) -> int:
         action = 0
         for _ in range(self.ticks):
-            action = self.brain.step(obs, reward=self.prev_reward)
+            action = self.brain.step(obs)
         return action
 
     def learn(self, obs, action, reward, next_obs, done):
         self.brain.reward(reward)
-        self.prev_reward = reward
 
     def reset(self):
         self.brain.end_episode()
-        self.prev_reward = 0.0
+
+    def set_learning_enabled(self, enabled: bool):
+        self.brain.learning_enabled = enabled
+
+    @property
+    def learning_state_hash(self) -> str:
+        return self.brain.learning_state_hash
 
 
 # ============================================================
@@ -160,15 +174,22 @@ class BenchResult:
         return float(np.mean(self.steps_list))
 
 
-def run_benchmark(agent, env, episodes: int, name: str) -> BenchResult:
+def run_benchmark(
+    agent,
+    env,
+    episodes: int,
+    name: str,
+    learning: bool = True,
+) -> BenchResult:
     rewards = []
     successes = []
     steps_list = []
     start = time.time()
+    agent.set_learning_enabled(learning)
+    state_before = getattr(agent, "learning_state_hash", None)
 
     for ep in range(episodes):
         obs = env.reset()
-        agent.reset()
         total_r = 0.0
         steps = 0
         done = False
@@ -176,7 +197,8 @@ def run_benchmark(agent, env, episodes: int, name: str) -> BenchResult:
         while not done:
             action = agent.act(obs)
             next_obs, reward, done, info = env.step(action)
-            agent.learn(obs, action, reward, next_obs, done)
+            if learning:
+                agent.learn(obs, action, reward, next_obs, done)
             obs = next_obs
             total_r += reward
             steps += 1
@@ -184,6 +206,14 @@ def run_benchmark(agent, env, episodes: int, name: str) -> BenchResult:
         rewards.append(total_r)
         successes.append(info.get("reached_goal", total_r > 5.0))
         steps_list.append(steps)
+        agent.reset()
+
+    state_after = getattr(agent, "learning_state_hash", None)
+    if not learning and state_before is not None and state_after != state_before:
+        raise RuntimeError(
+            "Frozen benchmark changed persistent learning state: "
+            f"{state_before} -> {state_after}"
+        )
 
     wall_time = time.time() - start
     return BenchResult(name, rewards, successes, steps_list, wall_time)
@@ -261,9 +291,9 @@ def bench_continual_learning():
         env_b = GridWorldEnv(size=8, num_walls=8, num_hazards=2, seed=200)
         run_benchmark(agent, env_b, 50, name)
 
-        # Phase 3: Test on layout A again (WITHOUT retraining)
+        # Phase 3: Frozen test on layout A again without parameter updates.
         env_a2 = GridWorldEnv(size=8, num_walls=8, num_hazards=2, seed=100)
-        r = run_benchmark(agent, env_a2, 20, name)
+        r = run_benchmark(agent, env_a2, 20, name, learning=False)
         print(f"done (phase 3 success: {r.success_rate * 100:.0f}%)")
         results_phase3.append(r)
 

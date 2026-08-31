@@ -3,11 +3,13 @@ name = "engram-python"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+repository.workspace = true
 description = "Python bindings for the Engram cognitive runtime"
 
 [lib]
 name = "_engram_native"
 crate-type = ["cdylib"]
+test = false
 
 [dependencies]
 engram-core = { path = "../engram-core" }

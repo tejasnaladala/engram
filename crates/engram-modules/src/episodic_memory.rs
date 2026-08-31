@@ -1,6 +1,6 @@
 use engram_core::{
-    BrainModule, LIFParams, ModuleId, ModuleSnapshot, NeuronPopulation, SpikeEvent, SimTime,
-    MemoryFormation, MemoryType,
+    BrainModule, LIFParams, MemoryFormation, MemoryType, ModuleId, ModuleSnapshot,
+    NeuronPopulation, SimTime, SpikeEvent,
 };
 use serde::{Deserialize, Serialize};
 
@@ -53,6 +53,12 @@ pub struct EpisodicMemory {
     /// Recent memory formations for dashboard
     recent_formations: Vec<MemoryFormation>,
     recent_spike_count: u32,
+    #[serde(default = "default_learning_enabled")]
+    learning_enabled: bool,
+}
+
+fn default_learning_enabled() -> bool {
+    true
 }
 
 impl EpisodicMemory {
@@ -84,11 +90,15 @@ impl EpisodicMemory {
             replay_episode_idx: 0,
             recent_formations: Vec::new(),
             recent_spike_count: 0,
+            learning_enabled: true,
         }
     }
 
     /// Record a frame of experience
     pub fn record_frame(&mut self, spikes: &[SpikeEvent], reward: f64, prediction_error: f64) {
+        if !self.learning_enabled {
+            return;
+        }
         let pattern: Vec<u32> = spikes.iter().map(|s| s.neuron_id).collect();
         self.current_episode.frames.push(EpisodeFrame {
             timestamp: spikes.first().map(|s| s.timestamp).unwrap_or(0.0),
@@ -102,9 +112,20 @@ impl EpisodicMemory {
         }
     }
 
+    /// Attach an environment reward to the most recently recorded action frame.
+    pub fn attach_reward_to_latest_frame(&mut self, reward: f64) {
+        if !self.learning_enabled {
+            return;
+        }
+        if let Some(frame) = self.current_episode.frames.last_mut() {
+            frame.reward += reward;
+            self.current_episode.total_reward += reward;
+        }
+    }
+
     /// End the current episode and store it
     pub fn end_episode(&mut self) {
-        if self.current_episode.frames.is_empty() {
+        if !self.learning_enabled || self.current_episode.frames.is_empty() {
             return;
         }
 
@@ -152,6 +173,17 @@ impl EpisodicMemory {
     /// Take and clear recent formations
     pub fn take_formations(&mut self) -> Vec<MemoryFormation> {
         std::mem::take(&mut self.recent_formations)
+    }
+
+    /// Enable or disable persistent episodic recording and finalization.
+    pub fn set_learning_enabled(&mut self, enabled: bool) {
+        self.learning_enabled = enabled;
+    }
+
+    /// Deterministic bytes for persistent episodic-memory verification.
+    pub fn learning_state_bytes(&self) -> Vec<u8> {
+        engram_core::checkpoint::serialize(&(&self.episodes, &self.current_episode))
+            .expect("serializing episodic learning state should succeed")
     }
 }
 
@@ -203,7 +235,8 @@ impl BrainModule for EpisodicMemory {
         // Pass through incoming spikes to neurons
         for spike in incoming {
             let idx = spike.neuron_id as usize % self.population.len();
-            self.population.deliver_input(idx as u32, spike.strength as f64 * 2.0);
+            self.population
+                .deliver_input(idx as u32, spike.strength as f64 * 2.0);
         }
 
         // Step neurons

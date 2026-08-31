@@ -1,10 +1,10 @@
 use engram_core::{
-    BrainModule, LIFParams, ModuleId, ModuleSnapshot, NeuronPopulation, SpikeEvent, SimTime,
-    MemoryFormation, MemoryType,
+    BrainModule, LIFParams, MemoryFormation, MemoryType, ModuleId, ModuleSnapshot,
+    NeuronPopulation, SimTime, SpikeEvent,
 };
 use rand::Rng;
-use rand_chacha::ChaCha8Rng;
 use rand::SeedableRng;
+use rand_chacha::ChaCha8Rng;
 use serde::{Deserialize, Serialize};
 
 /// Sparse Distributed Memory (SDM) based associative memory.
@@ -36,12 +36,12 @@ pub struct AssociativeMemory {
     write_count: u64,
     recent_spike_count: u32,
     seed: u64,
-    #[serde(skip, default = "default_rng")]
-    rng: ChaCha8Rng,
+    #[serde(default = "default_learning_enabled")]
+    learning_enabled: bool,
 }
 
-fn default_rng() -> ChaCha8Rng {
-    ChaCha8Rng::seed_from_u64(0)
+fn default_learning_enabled() -> bool {
+    true
 }
 
 impl AssociativeMemory {
@@ -75,7 +75,7 @@ impl AssociativeMemory {
             write_count: 0,
             recent_spike_count: 0,
             seed,
-            rng,
+            learning_enabled: true,
         }
     }
 
@@ -130,8 +130,8 @@ impl AssociativeMemory {
             let dist = self.hamming_distance(query, loc);
             if dist <= self.access_radius {
                 let base = loc * self.data_width;
-                for i in 0..self.data_width {
-                    sum[i] += self.counters[base + i] as i64;
+                for (i, value) in sum.iter_mut().enumerate() {
+                    *value += self.counters[base + i] as i64;
                 }
             }
         }
@@ -141,6 +141,17 @@ impl AssociativeMemory {
     /// Take and clear recent memory formations (for dashboard)
     pub fn take_formations(&mut self) -> Vec<MemoryFormation> {
         std::mem::take(&mut self.recent_formations)
+    }
+
+    /// Enable or disable persistent associative-memory writes.
+    pub fn set_learning_enabled(&mut self, enabled: bool) {
+        self.learning_enabled = enabled;
+    }
+
+    /// Deterministic bytes for persistent memory-state verification.
+    pub fn learning_state_bytes(&self) -> Vec<u8> {
+        engram_core::checkpoint::serialize(&(&self.counters, self.write_count))
+            .expect("serializing associative learning state should succeed")
     }
 }
 
@@ -154,7 +165,7 @@ impl BrainModule for AssociativeMemory {
         let input_pattern = self.spikes_to_pattern(incoming);
 
         // Write the current pattern to memory
-        if incoming.len() > 2 {
+        if self.learning_enabled && incoming.len() > 2 {
             self.write_pattern(&input_pattern, sim_time);
         }
 
@@ -176,7 +187,8 @@ impl BrainModule for AssociativeMemory {
         // Also drive neurons from incoming spikes directly
         for spike in incoming {
             let idx = spike.neuron_id as usize % self.population.len();
-            self.population.deliver_input(idx as u32, spike.strength as f64 * 3.0);
+            self.population
+                .deliver_input(idx as u32, spike.strength as f64 * 3.0);
         }
 
         // Step neurons

@@ -13,7 +13,7 @@ Quick start:
 """
 
 from engram.runtime import Runtime
-from engram.trainer import Trainer, RandomBaseline, TrainingResult, EpisodeResult
+from engram.trainer import EpisodeResult, RandomBaseline, Trainer, TrainingResult
 
 __version__ = "0.1.0"
-__all__ = ["Runtime", "Trainer", "RandomBaseline", "TrainingResult", "EpisodeResult"]
+__all__ = ["EpisodeResult", "RandomBaseline", "Runtime", "Trainer", "TrainingResult"]

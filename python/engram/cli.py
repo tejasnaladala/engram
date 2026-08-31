@@ -2,10 +2,8 @@
 
 import click
 from rich.console import Console
-from rich.table import Table
-from rich.live import Live
 from rich.panel import Panel
-from rich.text import Text
+from rich.table import Table
 
 console = Console()
 
@@ -13,7 +11,6 @@ console = Console()
 @click.group()
 def main():
     """Engram -- Brain-inspired adaptive intelligence runtime."""
-    pass
 
 
 @main.command()
@@ -42,7 +39,7 @@ def run(episodes: int, render: bool, seed: int):
 
         while not done:
             action = rt.step(obs)
-            obs, reward, done, info = env.step(action)
+            obs, reward, done, _info = env.step(action)
             rt.reward(reward)
             ep_reward += reward
             ep_steps += 1
@@ -80,7 +77,6 @@ def run(episodes: int, render: bool, seed: int):
 def dashboard(port: int):
     """Start the Engram server and open the dashboard."""
     import subprocess
-    import sys
 
     console.print(f"[cyan]Starting Engram server on port {port}...[/]")
     console.print(f"[green]Connect dashboard to ws://localhost:{port}/ws[/]")
@@ -88,7 +84,10 @@ def dashboard(port: int):
     # Start the Rust server binary. Run from the current working directory,
     # which is expected to be the repo root (where the Cargo workspace lives).
     try:
-        subprocess.run(["cargo", "run", "-p", "engram-server", "--release"])
+        subprocess.run(
+            ["cargo", "run", "-p", "engram-server", "--release"],
+            check=False,
+        )
     except KeyboardInterrupt:
         console.print("\n[yellow]Server stopped.[/]")
     except FileNotFoundError:
@@ -140,17 +139,22 @@ def benchmark():
             rt.reward(reward)
         rt.end_episode()
 
-    # Phase 3: Re-test Task A
+    # Phase 3: Re-test Task A on an isolated, update-free runtime copy.
+    eval_rt = rt.evaluation_copy()
+    eval_hash = eval_rt.learning_state_hash
     task_a_retest = []
     for ep in range(10):
         obs = env_a.reset()
         done = False
         ep_reward = 0.0
         while not done:
-            action = rt.step(obs)
+            action = eval_rt.step(obs)
             obs, reward, done, _ = env_a.step(action)
             ep_reward += reward
+        eval_rt.end_episode()
         task_a_retest.append(ep_reward)
+    if eval_rt.learning_state_hash != eval_hash:
+        raise click.ClickException("Frozen benchmark changed persistent learning state")
     task_a_after = sum(task_a_retest) / len(task_a_retest)
 
     forgetting = max(0, (task_a_final - task_a_after) / abs(task_a_final) * 100) if task_a_final != 0 else 0

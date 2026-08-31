@@ -2,7 +2,7 @@
 
 This demonstrates the novel dual-phase training approach:
 Phase 1: Surrogate gradient pretraining on the maze
-Phase 2: Online adaptation (local plasticity only) on a modified maze
+Phase 2: Gradient-based output-layer fine-tuning on a modified maze
 
 Usage:
     # Solve a procedural maze:
@@ -16,14 +16,14 @@ Usage:
 """
 
 import argparse
-import sys
 import os
+import sys
 import time
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from engram.spiking_dqn import SpikingDQNTrainer
 from engram.environments.maze import MazeEnv
+from engram.spiking_dqn import SpikingDQNTrainer
 
 
 def print_maze_with_path(env, episode, reward, success):
@@ -48,7 +48,7 @@ def main():
 
     print("=" * 60)
     print("  ENGRAM -- Spiking Neural Maze Solver")
-    print("  Dual-Phase Training: Surrogate Gradients + Local Adaptation")
+    print("  Dual-Phase Training: Full-Network + Output-Layer Gradients")
     print("=" * 60)
     print()
 
@@ -120,18 +120,18 @@ def main():
                 import torch
                 q = trainer.policy_net(torch.FloatTensor(obs).unsqueeze(0))
                 action = q.argmax(dim=1).item()
-            obs, reward, done, info = env.step(action)
+            obs, _reward, done, info = env.step(action)
         print(env.render())
         print()
 
     # ========================================
-    # PHASE 2: Online Adaptation
+    # PHASE 2: Output-layer gradient fine-tuning
     # ========================================
     if hasattr(env, 'rng') or isinstance(env, MazeEnv):
         print("=" * 60)
-        print("  PHASE 2: Online Local Adaptation")
-        print("  New maze layout. Only output layer adapts (no backprop).")
-        print("  Tests continual learning without catastrophic forgetting.")
+        print("  PHASE 2: Output-Layer Gradient Fine-Tuning")
+        print("  New maze layout. Only the output layer is updated with SGD.")
+        print("  This is adaptation by backpropagation, not frozen recall.")
         print("=" * 60)
         print()
 
@@ -147,7 +147,7 @@ def main():
         print()
 
         start_time = time.time()
-        phase2_result = trainer.adapt_phase2(
+        phase2_result = trainer.finetune_output_layer(
             env2, episodes=50, verbose=True, print_every=10
         )
         phase2_time = time.time() - start_time

@@ -103,7 +103,7 @@ Snapshots are serialized as MessagePack and streamed via WebSocket to the Observ
 ## Key Design Decisions
 
 1. **Rust core, Python API**: Performance where it matters (spike processing), ergonomics where it matters (user-facing API).
-2. **Event-driven, not clock-cycle**: Process only when spikes occur. At >90% sparsity, this is faster than dense simulation.
+2. **Event-driven, not dense-by-default**: Route work from emitted spikes rather than materializing every connection as a dense tensor. Performance depends on the workload and must be measured.
 3. **CSR sparse synapses**: Compressed Sparse Row format. Memory-efficient for the primary access pattern (outgoing connections from a spiking neuron).
-4. **Local learning, not backprop**: Each pathway learns independently through its own learning rule. No global backward pass.
-5. **Safety as a first-class citizen**: The safety kernel is not optional middleware -- it's part of the cognitive loop.
+4. **Local learning in the native runtime**: Each native pathway learns independently through its own learning rule, with no global backward pass. The separate experimental Spiking DQN uses surrogate-gradient backpropagation.
+5. **Safety as a first-class subsystem**: When enabled, the safety kernel runs inside the cognitive loop rather than as external middleware.

@@ -1,16 +1,17 @@
-"""Spiking DQN with surrogate gradients -- the training engine that actually works.
+"""Experimental Spiking DQN with surrogate-gradient training.
 
-This implements the proven recipe from the spiking RL literature:
+This combines a conventional DQN loop with spiking hidden layers:
 - LIF neurons with surrogate gradients (arctangent) for backpropagation
 - Non-spiking leaky integrator output neurons (membrane voltage = Q-values)
 - Experience replay buffer
 - Target network for stability
 - Soft reset mechanism
 
-Based on DSQN (Chen et al. 2022) which beat standard DQN on 17 Atari games.
+The design is inspired by DSQN (Chen et al. 2022); this implementation does not
+claim to reproduce that paper's Atari results.
 
 Phase 1: Train with surrogate gradients (standard DQN loop)
-Phase 2: Switch to local adaptation for online continual learning
+Phase 2: Fine-tune the output layer with SGD and backpropagation
 """
 
 from __future__ import annotations
@@ -21,10 +22,10 @@ from dataclasses import dataclass, field
 from typing import Protocol
 
 import numpy as np
-import torch
-import torch.nn as nn
 import snntorch as snn
+import torch
 from snntorch import surrogate
+from torch import nn
 
 
 class Environment(Protocol):
@@ -80,7 +81,7 @@ class SpikingQNetwork(nn.Module):
             cur2 = self.fc2(spk1)
             spk2, mem2 = self.lif2(cur2, mem2)
             cur_out = self.fc_out(spk2)
-            spk_out, mem_out = self.li_out(cur_out, mem_out)
+            _spk_out, mem_out = self.li_out(cur_out, mem_out)
             max_mem = torch.max(max_mem, mem_out)
 
         return max_mem
@@ -141,7 +142,7 @@ class SpikingDQNTrainer:
     """Dual-phase spiking DQN trainer.
 
     Phase 1 (surrogate gradient): DQN training through spiking neurons.
-    Phase 2 (online adaptation): Local updates on output layer only.
+    Phase 2 (output-layer fine-tuning): SGD and backpropagation on the output layer.
     """
 
     def __init__(
@@ -238,8 +239,8 @@ class SpikingDQNTrainer:
                 )
         return result
 
-    def adapt_phase2(self, env, episodes=50, verbose=True, print_every=10) -> TrainResult:
-        """Phase 2: Online local adaptation (output layer only)."""
+    def finetune_output_layer(self, env, episodes=50, verbose=True, print_every=10) -> TrainResult:
+        """Phase 2: Gradient-based output-layer fine-tuning."""
         self.phase = 2
         result = TrainResult()
         for param in self.policy_net.parameters():
@@ -278,13 +279,17 @@ class SpikingDQNTrainer:
             result.episode_steps.append(steps)
             if verbose and (ep + 1) % print_every == 0:
                 print(
-                    f"  Phase 2 | ep {ep+1:4d} | "
+                    f"  Output fine-tune | ep {ep+1:4d} | "
                     f"reward {result.avg_reward_last_20:7.2f} | "
                     f"success {result.success_rate_last_20*100:5.1f}% | steps {steps:4d}"
                 )
         for param in self.policy_net.parameters():
             param.requires_grad = True
         return result
+
+    def adapt_phase2(self, env, episodes=50, verbose=True, print_every=10) -> TrainResult:
+        """Compatibility alias for gradient-based output-layer fine-tuning."""
+        return self.finetune_output_layer(env, episodes, verbose, print_every)
 
     def save(self, path: str):
         torch.save({

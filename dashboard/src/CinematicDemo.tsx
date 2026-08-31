@@ -1,5 +1,5 @@
 import { Canvas, useFrame } from '@react-three/fiber'
-import { OrbitControls, Text } from '@react-three/drei'
+import { Line, OrbitControls, Text } from '@react-three/drei'
 import { useRef, useMemo, useState, useEffect } from 'react'
 import * as THREE from 'three'
 import LiveAgent from './components/LiveAgent'
@@ -77,8 +77,8 @@ function Tracts() {
   return <>{CONNS.map(([f,t],i) => {
     const p1 = new THREE.Vector3(...REGIONS[f].pos), p2 = new THREE.Vector3(...REGIONS[t].pos)
     const mid = p1.clone().add(p2).multiplyScalar(0.5); mid.y += 0.12
-    const geo = new THREE.BufferGeometry().setFromPoints(new THREE.QuadraticBezierCurve3(p1, mid, p2).getPoints(16))
-    return <line key={i} geometry={geo}><lineBasicMaterial color={f===5||t===5?'#604050':'#283848'} transparent opacity={0.1} /></line>
+    const points = new THREE.QuadraticBezierCurve3(p1, mid, p2).getPoints(16)
+    return <Line key={i} points={points} color={f===5||t===5?'#604050':'#283848'} transparent opacity={0.1} lineWidth={1} />
   })}</>
 }
 
@@ -103,7 +103,7 @@ export default function CinematicDemo() {
   const pe = (0.3 + 0.2 * Math.sin(t * 0.5)).toFixed(3)
 
   return (
-    <div style={{ width:'100vw', height:'100vh', background:'#020205', position:'relative', overflow:'hidden' }}>
+    <div className="cinematic-shell" style={{ width:'100vw', height:'100vh', background:'#020205', position:'relative', overflow:'hidden' }}>
       {/* CRT scanlines */}
       <div style={{ position:'fixed', inset:0, pointerEvents:'none', zIndex:10,
         background:'repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.03) 2px, rgba(0,0,0,0.03) 4px)',
@@ -112,7 +112,7 @@ export default function CinematicDemo() {
       </div>
 
       {/* Top bar */}
-      <div style={{
+      <div className="cinematic-topbar" style={{
         position:'fixed', top:0, left:0, right:0, zIndex:20, height:'36px',
         display:'flex', alignItems:'center', padding:'0 16px', gap:'16px',
         background:'linear-gradient(180deg, rgba(6,8,16,0.95), rgba(6,8,16,0.7))',
@@ -122,10 +122,10 @@ export default function CinematicDemo() {
         <div style={{ display:'flex', alignItems:'center', gap:'8px' }}>
           <div style={{ width:'5px', height:'5px', borderRadius:'1px', background:'#3098a8', boxShadow:'0 0 8px #3098a8', animation:'pulse 2s ease-in-out infinite' }} />
           <span style={{ fontSize:'12px', fontWeight:700, letterSpacing:'3px', color:'#3098a8' }}>ENGRAM</span>
-          <span style={{ fontSize:'8px', color:'#2a3450', letterSpacing:'1.5px', marginLeft:'4px' }}>NEURAL COGNITIVE SYSTEM</span>
+          <span className="cinematic-subtitle" style={{ fontSize:'8px', color:'#2a3450', letterSpacing:'1.5px', marginLeft:'4px' }}>NEURAL COGNITIVE SYSTEM</span>
         </div>
         <div style={{ width:'1px', height:'18px', background:'rgba(48,152,168,0.1)' }} />
-        <M label="Hz" value={hz} color="#508870" />
+        <M label="Hz" value={hz} color="#508870" mobile />
         <M label="SPK" value={spk} color="#5098a8" />
         <M label="PE" value={pe} color="#907858" />
         <div style={{ flex:1 }} />
@@ -134,7 +134,7 @@ export default function CinematicDemo() {
       </div>
 
       {/* 3D Brain -- top 55% */}
-      <div style={{ position:'absolute', top:'36px', left:0, right:0, height:'55%', zIndex:1 }}>
+      <div className="cinematic-brain" style={{ position:'absolute', top:'36px', left:0, right:0, height:'55%', zIndex:1 }}>
         <Canvas camera={{position:[0,0.6,3.0],fov:38}} gl={{antialias:true,alpha:true}} style={{background:'#020205'}}>
           <ambientLight intensity={0.06} />
           <directionalLight position={[2,3,2]} intensity={0.25} color="#8098b0" />
@@ -150,7 +150,7 @@ export default function CinematicDemo() {
       </div>
 
       {/* Live Learning Agent -- bottom 40% */}
-      <div style={{
+      <div className="cinematic-agent" style={{
         position:'absolute', bottom:'24px', left:'16px', right:'16px', height:'38%', zIndex:20,
         background:'rgba(6,8,16,0.9)', border:'1px solid rgba(48,152,168,0.08)', borderRadius:'4px',
       }}>
@@ -171,7 +171,7 @@ export default function CinematicDemo() {
       </div>
 
       {/* Bottom status */}
-      <div style={{
+      <div className="cinematic-footer" style={{
         position:'fixed', bottom:0, left:0, right:0, zIndex:20, height:'24px',
         display:'flex', alignItems:'center', padding:'0 16px', gap:'20px',
         background:'linear-gradient(0deg, rgba(6,8,16,0.95), rgba(6,8,16,0.7))',
@@ -200,8 +200,8 @@ export default function CinematicDemo() {
   )
 }
 
-function M({ label, value, color }: { label:string; value:string; color:string }) {
-  return <div style={{ display:'flex', alignItems:'baseline', gap:'4px', fontFamily:"'JetBrains Mono', monospace" }}>
+function M({ label, value, color, mobile = false }: { label:string; value:string; color:string; mobile?:boolean }) {
+  return <div className={`cinematic-metric${mobile ? ' cinematic-metric--mobile' : ''}`} style={{ display:'flex', alignItems:'baseline', gap:'4px', fontFamily:"'JetBrains Mono', monospace" }}>
     <span style={{ fontSize:'7px', color:'#2a3450', letterSpacing:'1px' }}>{label}</span>
     <span style={{ fontSize:'11px', color, fontWeight:500 }}>{value}</span>
   </div>

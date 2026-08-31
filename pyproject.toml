@@ -8,12 +8,15 @@ version = "0.1.0"
 description = "Brain-inspired adaptive intelligence runtime"
 readme = "README.md"
 license = "Apache-2.0"
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 dependencies = [
     "numpy>=1.24",
     "click>=8.0",
     "rich>=13.0",
 ]
+
+[project.urls]
+Repository = "https://github.com/tejasnaladala/engram"
 
 [project.scripts]
 engram = "engram.cli:main"

@@ -3,6 +3,7 @@ name = "engram-runtime"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+repository.workspace = true
 description = "Cognitive loop orchestrator for the Engram runtime"
 
 [dependencies]

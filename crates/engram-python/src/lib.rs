@@ -1,5 +1,5 @@
-use pyo3::prelude::*;
 use engram_runtime::{EngramRuntime, RuntimeConfig};
+use pyo3::prelude::*;
 
 /// Python wrapper for the Engram cognitive runtime
 #[pyclass]
@@ -31,6 +31,28 @@ impl PyRuntime {
     /// Set the reward signal
     fn set_reward(&mut self, reward: f64) {
         self.runtime.set_reward(reward);
+    }
+
+    /// Enable or disable persistent learning.
+    fn set_learning_enabled(&mut self, enabled: bool) {
+        self.runtime.set_learning_enabled(enabled);
+    }
+
+    /// Whether persistent learning is enabled.
+    fn learning_enabled(&self) -> bool {
+        self.runtime.learning_enabled()
+    }
+
+    /// Deterministic non-cryptographic fingerprint of persistent learning state.
+    fn learning_state_hash(&self) -> u64 {
+        self.runtime.learning_state_hash()
+    }
+
+    /// Clone the runtime for isolated, frozen evaluation.
+    fn evaluation_copy(&self) -> Self {
+        let mut runtime = self.runtime.clone();
+        runtime.set_learning_enabled(false);
+        Self { runtime }
     }
 
     /// Run one cognitive cycle, returns the selected action ID

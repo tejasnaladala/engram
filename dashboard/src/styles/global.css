@@ -1,3 +1,4 @@
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600&display=swap');
 @import "tailwindcss";
 
 /* ═══════════════════════════════════════════════════════════
@@ -5,8 +6,6 @@
    Visual narrative: input → processing → memory → action → safety
    Design: unified terminal × engineering dashboard × living machine
    ═══════════════════════════════════════════════════════════ */
-
-@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600&display=swap');
 
 :root {
   /* ── VOID HIERARCHY ── */
@@ -232,4 +231,159 @@ body {
   z-index: 100;
   box-shadow: 0 4px 16px rgba(0,0,0,0.5);
   animation: fade-up 0.15s ease-out;
+}
+
+.maze-pair {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+}
+
+@media (max-width: 720px) {
+  html,
+  body {
+    width: 100%;
+    min-width: 0;
+    height: auto;
+    min-height: 100%;
+    overflow-x: hidden;
+    overflow-y: auto;
+  }
+
+  #root {
+    height: auto;
+    min-height: 100vh;
+  }
+
+  .app-shell {
+    height: auto !important;
+    min-height: 100vh;
+  }
+
+  .metrics-bar {
+    position: sticky !important;
+    top: 0;
+    gap: 8px !important;
+    padding: 0 10px !important;
+    overflow: hidden;
+  }
+
+  .metrics-bar .metric-readout:not(.metric-readout--mobile),
+  .metrics-divider {
+    display: none;
+  }
+
+  .dashboard-layout {
+    flex: none !important;
+    overflow: visible;
+  }
+
+  .diagnostics-grid {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) !important;
+    height: auto !important;
+  }
+
+  .diagnostics-grid > .panel {
+    height: 200px;
+  }
+
+  .diagnostics-grid > .panel:nth-child(1) {
+    grid-column: 1;
+    grid-row: 1;
+  }
+
+  .diagnostics-grid > .panel:nth-child(2) {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    height: 280px;
+  }
+
+  .diagnostics-grid > .panel:nth-child(3) {
+    grid-column: 2;
+    grid-row: 1;
+  }
+
+  .learning-panel {
+    flex: none !important;
+    min-height: 570px !important;
+  }
+
+  .activity-panel {
+    height: 180px !important;
+  }
+
+  .live-agent-layout {
+    height: auto !important;
+    min-height: 540px;
+    flex-direction: column;
+    align-items: stretch !important;
+    justify-content: center;
+    padding: 8px !important;
+  }
+
+  .maze-pair {
+    justify-content: center;
+    gap: 8px;
+  }
+
+  .agent-scoreboard {
+    width: 100%;
+  }
+
+  .agent-scorecards {
+    gap: 4px !important;
+  }
+
+  .agent-scorecards > div {
+    min-width: 0;
+    padding: 6px !important;
+  }
+
+  .dashboard-footer {
+    height: auto !important;
+    min-height: 18px;
+    flex-wrap: wrap;
+    gap: 6px !important;
+    padding: 4px 8px !important;
+  }
+
+  .cinematic-shell {
+    height: 1160px !important;
+    min-height: 1160px;
+  }
+
+  .cinematic-topbar {
+    gap: 8px !important;
+    padding: 0 10px !important;
+    overflow: hidden;
+  }
+
+  .cinematic-subtitle,
+  .cinematic-metric:not(.cinematic-metric--mobile) {
+    display: none !important;
+  }
+
+  .cinematic-brain {
+    height: 450px !important;
+  }
+
+  .cinematic-agent {
+    top: 500px !important;
+    bottom: auto !important;
+    left: 8px !important;
+    right: 8px !important;
+    height: 620px !important;
+  }
+
+  .cinematic-footer {
+    position: absolute !important;
+    gap: 8px !important;
+    padding: 0 8px !important;
+    overflow: hidden;
+  }
+
+  .cinematic-footer span:not(:first-of-type) {
+    display: none;
+  }
 }

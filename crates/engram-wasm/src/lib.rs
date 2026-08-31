@@ -1,5 +1,4 @@
 use wasm_bindgen::prelude::*;
-use engram_core::{ModuleId, RuntimeSnapshot};
 use engram_modules::{
     sensory_encoder::SensoryEncoder,
     predictive_error::PredictiveError,

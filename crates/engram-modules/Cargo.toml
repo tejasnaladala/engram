@@ -3,6 +3,7 @@ name = "engram-modules"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+repository.workspace = true
 description = "Brain region modules for the Engram cognitive runtime"
 
 [dependencies]

@@ -230,7 +230,6 @@ dependencies = [
  "futures-util",
  "rmp-serde",
  "serde",
- "serde_json",
  "tokio",
  "tower-http",
 ]

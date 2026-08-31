@@ -6,8 +6,6 @@ Tests the associative memory and prediction capabilities of the brain.
 
 from __future__ import annotations
 
-from typing import Optional
-
 import numpy as np
 
 
@@ -19,10 +17,8 @@ class PatternLearnerEnv:
     the agent learns by observing the association between patterns and
     the reward signal indicating correct/incorrect classification.
 
-    This tests what spiking networks are actually good at:
-    - fast one-shot/few-shot association
-    - continual learning of new classes without forgetting old ones
-    - noise-robust pattern completion
+    The environment probes online association, class retention, and behavior
+    under input noise; those properties must be established from measured runs.
 
     Observation (pattern_size dims):
       The pattern itself, as floats in [0, 1].
@@ -41,7 +37,7 @@ class PatternLearnerEnv:
         pattern_size: int = 16,
         noise_level: float = 0.1,
         patterns_per_episode: int = 50,
-        seed: Optional[int] = None,
+        seed: int | None = None,
     ):
         self.num_classes = num_classes
         self.pattern_size = pattern_size

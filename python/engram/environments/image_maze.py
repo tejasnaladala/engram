@@ -11,9 +11,6 @@ If no start/goal markers found, uses top-left and bottom-right open cells.
 
 from __future__ import annotations
 
-from pathlib import Path
-from typing import Optional
-
 import numpy as np
 
 UP, RIGHT, DOWN, LEFT = 0, 1, 2, 3
@@ -74,8 +71,11 @@ def find_start_goal(grid: np.ndarray, image_path: str | None = None):
                         start = (x, y)
                     if r > 150 and g < 100 and b < 100 and goal is None:
                         goal = (x, y)
-        except Exception:
-            pass
+        except (ImportError, OSError, ValueError, TypeError, IndexError):
+            # Color markers are optional; malformed or unreadable color data
+            # falls through to the open-cell search below.
+            start = None
+            goal = None
 
     # Fallback: first open cell from top-left, last from bottom-right
     if start is None:

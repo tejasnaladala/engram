@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import random
-from typing import Optional
 
 import numpy as np
 
@@ -35,7 +34,7 @@ class MazeEnv:
         self,
         width: int = 7,
         height: int = 7,
-        seed: Optional[int] = None,
+        seed: int | None = None,
     ):
         self.width = width
         self.height = height

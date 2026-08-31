@@ -6,11 +6,11 @@ Usage:
 Shows whether the spiking network actually learns better than chance.
 """
 
-from engram import Runtime, Trainer, RandomBaseline
+from engram import RandomBaseline, Runtime, Trainer
+from engram.environments.anomaly_stream import AnomalyStreamEnv
 from engram.environments.grid_world import GridWorldEnv
 from engram.environments.maze import MazeEnv
 from engram.environments.pattern_learner import PatternLearnerEnv
-from engram.environments.anomaly_stream import AnomalyStreamEnv
 
 
 def run_comparison(env_name: str, env, input_dims: int, num_actions: int, episodes: int) -> None:
@@ -32,7 +32,7 @@ def run_comparison(env_name: str, env, input_dims: int, num_actions: int, episod
     random_result = random_trainer.train(episodes=episodes)
 
     # Compare
-    print(f"\n  Results:")
+    print("\n  Results:")
     print(f"  {'Metric':<25} {'Engram':>10} {'Random':>10} {'Delta':>10}")
     print(f"  {'-'*55}")
 

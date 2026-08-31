@@ -126,6 +126,7 @@ class Trainer:
         """
         result = TrainingResult()
         start = time.time()
+        spikes_before = self.brain.total_spikes
 
         for ep in range(episodes):
             ep_result = self._run_episode(ep)
@@ -149,7 +150,7 @@ class Trainer:
                 )
 
         result.wall_time_s = time.time() - start
-        result.total_spikes = self.brain.total_spikes
+        result.total_spikes = self.brain.total_spikes - spikes_before
         return result
 
     def _run_episode(self, episode_num: int) -> EpisodeResult:
@@ -162,12 +163,11 @@ class Trainer:
         pe_count = 0
         vetoes_before = self.brain.total_vetoes
 
-        prev_reward = 0.0
         while not done:
             # Run multiple ticks per environment step for richer neural dynamics
             action = 0
             for _ in range(self.ticks_per_step):
-                action = self.brain.step(obs, reward=prev_reward)
+                action = self.brain.step(obs)
 
             obs, reward, done, info = self.env.step(action)
             total_reward += reward
@@ -175,7 +175,6 @@ class Trainer:
 
             # Deliver the actual reward from this step
             self.brain.reward(reward)
-            prev_reward = reward
 
             pe_sum += self.brain.prediction_error
             pe_count += 1
@@ -197,10 +196,25 @@ class Trainer:
         episodes: int = 20,
         verbose: bool = False,
     ) -> TrainingResult:
-        """Evaluate without learning (snapshot current performance)."""
-        # For now, evaluation runs the same as training since the
-        # brain always learns. Future: add a freeze mode.
-        return self.train(episodes=episodes, verbose=verbose, print_every=5)
+        """Evaluate an isolated runtime copy without persistent updates."""
+        evaluation_brain = self.brain.evaluation_copy()
+        evaluation_brain.learning_enabled = False
+        state_before = evaluation_brain.learning_state_hash
+        evaluator = Trainer(evaluation_brain, self.env, self.ticks_per_step)
+
+        result = evaluator.train(
+            episodes=episodes,
+            verbose=verbose,
+            print_every=5,
+        )
+
+        state_after = evaluation_brain.learning_state_hash
+        if state_after != state_before:
+            raise RuntimeError(
+                "Frozen evaluation changed persistent learning state: "
+                f"{state_before} -> {state_after}"
+            )
+        return result
 
 
 class RandomBaseline:

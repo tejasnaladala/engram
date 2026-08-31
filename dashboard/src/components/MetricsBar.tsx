@@ -11,9 +11,9 @@ function fmt(n: number): string {
   return n.toFixed(0)
 }
 
-function R({ k, v, c }: { k: string; v: string; c?: string }) {
+function R({ k, v, c, mobile = false }: { k: string; v: string; c?: string; mobile?: boolean }) {
   return (
-    <span style={{ fontFamily:'var(--mono)', fontSize:'11px', letterSpacing:'0.3px' }}>
+    <span className={`metric-readout${mobile ? ' metric-readout--mobile' : ''}`} style={{ fontFamily:'var(--mono)', fontSize:'11px', letterSpacing:'0.3px' }}>
       <span style={{ color:'var(--t-sec)', fontSize:'9px' }}>{k}</span>
       <span style={{ color:'var(--t-ghost)', margin:'0 3px' }}>:</span>
       <span style={{ color: c || 'var(--t-max)', fontWeight: 500, fontVariantNumeric:'tabular-nums' }}>{v}</span>
@@ -26,7 +26,7 @@ export default function MetricsBar({ metrics, connected }: MetricsBarProps) {
   const hzC = hz > 800 ? 'var(--c-output)' : hz > 400 ? 'var(--c-predict)' : 'var(--c-guard)'
 
   return (
-    <div style={{
+    <div className="metrics-bar" style={{
       display:'flex', alignItems:'center', gap:'16px',
       padding:'0 14px', height:'34px', flexShrink:0,
       background:'var(--s1)', borderBottom:'1px solid var(--b-dim)',
@@ -45,18 +45,18 @@ export default function MetricsBar({ metrics, connected }: MetricsBarProps) {
         </span>
       </div>
 
-      <span style={{ color:'var(--t-ghost)', fontFamily:'var(--mono)', fontSize:'11px' }}>|</span>
+      <span className="metrics-divider" style={{ color:'var(--t-ghost)', fontFamily:'var(--mono)', fontSize:'11px' }}>|</span>
 
       <div style={{ display:'flex', alignItems:'center', gap:'3px' }}>
         <div style={{ width:'4px', height:'4px', borderRadius:'50%', background:hzC, boxShadow:`0 0 4px ${hzC}` }} />
-        <R k="Hz" v={hz.toFixed(0)} c={hzC} />
+        <R k="Hz" v={hz.toFixed(0)} c={hzC} mobile />
       </div>
       <R k="spk" v={fmt(metrics.total_spikes)} c="var(--c-input)" />
       <R k="vto" v={String(metrics.total_vetoes)} c={metrics.total_vetoes>0?'var(--c-guard)':'var(--t-sec)'} />
       <R k="syn" v={fmt(metrics.active_synapses)} c="var(--c-process)" />
       <R k="E" v={metrics.energy_units.toFixed(1)} c="var(--c-memory)" />
 
-      <span style={{ color:'var(--t-ghost)', fontFamily:'var(--mono)', fontSize:'11px' }}>|</span>
+      <span className="metrics-divider" style={{ color:'var(--t-ghost)', fontFamily:'var(--mono)', fontSize:'11px' }}>|</span>
 
       <R k="t" v={(metrics.sim_time/1000).toFixed(2)+'s'} />
       <R k="tick" v={String(metrics.tick)} />

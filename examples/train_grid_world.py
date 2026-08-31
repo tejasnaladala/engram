@@ -23,8 +23,8 @@ def main() -> None:
     brain = Runtime(input_dims=8, num_actions=4, seed=42)
 
     print(f"Environment: {env.size}x{env.size} grid, {env.num_walls} walls, {env.num_hazards} hazards")
-    print(f"Brain: 672 spiking neurons, 6 regions, three-factor STDP")
-    print(f"Initial grid:")
+    print("Brain: 672 spiking neurons, 6 regions, three-factor STDP")
+    print("Initial grid:")
     print(env.render())
     print()
 

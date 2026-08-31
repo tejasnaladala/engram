@@ -3,6 +3,7 @@
 from engram import Runtime
 from engram.environments import GridWorldEnv
 
+
 def main():
     env = GridWorldEnv(size=12, num_walls=15, num_hazards=5, seed=42)
     rt = Runtime(input_dims=8, num_actions=4, seed=42)
@@ -22,8 +23,8 @@ def main():
         ep_steps = 0
 
         while not done:
-            action = rt.step(obs, reward=0.0 if ep_steps == 0 else reward)
-            obs, reward, done, info = env.step(action)
+            action = rt.step(obs)
+            obs, reward, done, _info = env.step(action)
             rt.reward(reward)
             ep_reward += reward
             ep_steps += 1
