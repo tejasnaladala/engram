@@ -440,19 +440,21 @@ export default function LiveAgent() {
   const rndAvgR = state.rndRewards.length>0 ? state.rndRewards.slice(-20).reduce((a,b)=>a+b,0)/Math.min(20,state.rndRewards.length) : 0
 
   return (
-    <div style={{ display:'flex', gap:'12px', height:'100%', padding:'6px 10px', alignItems:'center' }}>
-      {/* Left maze: Engram */}
-      <MazeCanvas grid={state.grid} ax={state.eng.ax} ay={state.eng.ay} path={state.eng.path}
-        solved={state.eng.solved} label="ENGRAM (FEATURE Q-LEARN)" color="#3098a8" qTable={state.engQTable} />
+    <div className="live-agent-layout" style={{ display:'flex', gap:'12px', height:'100%', padding:'6px 10px', alignItems:'center' }}>
+      <div className="maze-pair">
+        {/* Left maze: Engram */}
+        <MazeCanvas grid={state.grid} ax={state.eng.ax} ay={state.eng.ay} path={state.eng.path}
+          solved={state.eng.solved} label="ENGRAM (FEATURE Q-LEARN)" color="#3098a8" qTable={state.engQTable} />
 
-      {/* Right maze: Tabular Q-Learning (standard RL) */}
-      <MazeCanvas grid={state.grid} ax={state.rnd.ax} ay={state.rnd.ay} path={state.rnd.path}
-        solved={state.rnd.solved} label="TABULAR Q-LEARN (STD RL)" color="#906060" />
+        {/* Right maze: Tabular Q-Learning (standard RL) */}
+        <MazeCanvas grid={state.grid} ax={state.rnd.ax} ay={state.rnd.ay} path={state.rnd.path}
+          solved={state.rnd.solved} label="TABULAR Q-LEARN (STD RL)" color="#906060" />
+      </div>
 
       {/* Scoreboard + chart */}
-      <div style={{ flex:1, display:'flex', flexDirection:'column', gap:'6px', minWidth:0, justifyContent:'center' }}>
+      <div className="agent-scoreboard" style={{ flex:1, display:'flex', flexDirection:'column', gap:'6px', minWidth:0, justifyContent:'center' }}>
         {/* BIG SCOREBOARD -- unmissable */}
-        <div style={{ display:'flex', gap:'2px', alignItems:'stretch', fontFamily:'var(--mono)' }}>
+        <div className="agent-scorecards" style={{ display:'flex', gap:'2px', alignItems:'stretch', fontFamily:'var(--mono)' }}>
           {/* Engram score */}
           <div style={{
             flex:1, background:'rgba(48,152,168,0.06)', borderRadius:'3px', padding:'6px 10px',

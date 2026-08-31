@@ -104,14 +104,14 @@ export default function App() {
   */
 
   return (
-    <div style={{ height:'100vh', display:'flex', flexDirection:'column', background:'var(--void)', position:'relative' }}>
+    <div className="app-shell" style={{ height:'100vh', display:'flex', flexDirection:'column', background:'var(--void)', position:'relative' }}>
       <div className="ambient-grid" />
       <MetricsBar metrics={snapshot.metrics} connected={connected} />
 
-      <div style={{ flex:1, display:'flex', flexDirection:'column', gap:'1px', padding:'1px', minHeight:0, position:'relative', zIndex:1 }}>
+      <div className="dashboard-layout" style={{ flex:1, display:'flex', flexDirection:'column', gap:'1px', padding:'1px', minHeight:0, position:'relative', zIndex:1 }}>
 
         {/* ROW 1: ALL diagnostics in one row -- no wasted vertical space */}
-        <div style={{ display:'grid', gridTemplateColumns:'140px 1fr 180px 140px 140px', gap:'1px', height:'240px', flexShrink:0 }}>
+        <div className="diagnostics-grid" style={{ display:'grid', gridTemplateColumns:'140px 1fr 180px 140px 140px', gap:'1px', height:'240px', flexShrink:0 }}>
           <div className="panel">
             <PH title="REGIONS" tag="RT" />
             <ModuleActivity modules={snapshot.modules} />
@@ -135,19 +135,19 @@ export default function App() {
         </div>
 
         {/* ROW 2: Live learning agent -- the star of the show */}
-        <div className="panel" style={{ flex:1, minHeight:0 }}>
+        <div className="panel learning-panel" style={{ flex:1, minHeight:0 }}>
           <PH title="LIVE LEARNING -- RANDOM MAZE GENERALIZATION" tag="Q-LEARN" />
           <LiveAgent />
         </div>
 
         {/* ROW 3: Spike raster -- compact, full width */}
-        <div className="panel" style={{ height:'160px', flexShrink:0 }}>
+        <div className="panel activity-panel" style={{ height:'160px', flexShrink:0 }}>
           <PH title="NEURAL ACTIVITY" tag={`${totalActive} UNITS`} />
           <SpikeRaster spikeHistory={spikeHistory} />
         </div>
       </div>
 
-      <div style={{
+      <div className="dashboard-footer" style={{
         height:'18px', display:'flex', alignItems:'center',
         padding:'0 10px', gap:'20px',
         borderTop:'1px solid var(--b-ghost)',

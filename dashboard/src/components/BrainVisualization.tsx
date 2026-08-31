@@ -1,5 +1,5 @@
 import { Canvas, useFrame } from '@react-three/fiber'
-import { OrbitControls, Text } from '@react-three/drei'
+import { Line, OrbitControls, Text } from '@react-three/drei'
 import { useRef, useMemo } from 'react'
 import * as THREE from 'three'
 import type { ModuleSnapshot } from '../lib/protocol'
@@ -99,11 +99,9 @@ function Tracts({ modules }: { modules: ModuleSnapshot[] }) {
       const p1 = new THREE.Vector3(...POS[f]), p2 = new THREE.Vector3(...POS[t])
       const mid = p1.clone().add(p2).multiplyScalar(0.5); mid.y += 0.1
       const curve = new THREE.QuadraticBezierCurve3(p1, mid, p2)
-      const geo = new THREE.BufferGeometry().setFromPoints(curve.getPoints(14))
+      const points = curve.getPoints(14)
       const act = Math.max(modules[f]?.activity_level||0, modules[t]?.activity_level||0)
-      return <line key={i} geometry={geo}>
-        <lineBasicMaterial color={f===5||t===5?'#604050':'#283848'} transparent opacity={0.04+act*0.08} />
-      </line>
+      return <Line key={i} points={points} color={f===5||t===5?'#604050':'#283848'} transparent opacity={0.04+act*0.08} lineWidth={1} />
     })}
   </>
 }
