@@ -1,54 +1,40 @@
 # Engram
 
-An open-source framework for building systems that learn continuously from experience.
+**Experimental runtime for online, pathway-local learning in spiking neural networks.**
 
-Engram is a cognitive runtime, not a model. You wire together brain regions with plastic
-pathways, feed it a stream of observations and rewards, and it adapts online while it runs.
-The native runtime has no optimizer or backward pass. Each connection updates itself from
-local activity and a global neuromodulatory signal, the way biological synapses are thought
-to. The repository also contains a separate experimental Spiking DQN that does use PyTorch
-surrogate-gradient backpropagation and replay; claims about local learning do not apply to it.
+- **Runtime:** Rust core, Python/PyO3 API, six fixed modules, and four plastic pathways.
+- **Learning:** `Runtime.step()` applies pathway-local three-factor STDP updates; associative and
+  episodic memory persist across episode resets.
+- **Safety:** `SafetyKernel` is an action-veto layer. It checks registered hard constraints and
+  learned state-action inhibitions before an action reaches the environment, emitting action `0`
+  on a veto. Its experimental efficacy remains unverified.
+- **Tools:** React Observatory dashboard over WebSocket and a WebAssembly demo.
 
-The core is Rust. The API you actually touch is Python (via PyO3). There is a React
-"Observatory" dashboard that streams the network's internal state at 30fps, and a WebAssembly
-build so the whole thing can run in a browser tab.
+A separate experimental Spiking DQN uses PyTorch surrogate-gradient backpropagation and replay.
+Descriptions of local learning below apply to the native runtime.
 
 ```python
 from engram import Runtime, Trainer
 from engram.environments import GridWorldEnv
 
 env = GridWorldEnv(size=8)
-brain = Runtime(input_dims=8, num_actions=4)      # 672 spiking neurons across 6 regions
+brain = Runtime(input_dims=8, num_actions=4)
 result = Trainer(brain, env).train(episodes=200)
 print(result.summary())
 ```
 
-## Why the native runtime is not another backprop framework
+## Native learning loop
 
-A standard deep-learning stack collects a batch, computes a loss, and pushes gradients
-backward through the whole graph. The weights are frozen at deployment. Adapting to a new
-distribution means stopping, retraining, and redeploying.
+- **Pathway-local credit assignment.** Every pathway carries its own `LearningRule`. Spike
+  timing creates an eligibility trace, and a later reward or surprise signal scales the update.
+- **Online updates and isolated evaluation.** `Runtime.step()` updates local state while learning
+  is enabled. `Trainer.evaluate()` runs an isolated copy with persistent updates disabled and
+  verifies that its learning-state hash remains unchanged.
+- **Persistent memory.** Associative memory uses a sparse-distributed store; episodic memory uses
+  a replay buffer that consolidates during quiet periods. Both persist across episode resets.
 
-The native Engram runtime learns the way a nervous system does:
-
-- **No backward pass.** Every pathway carries its own `LearningRule`. A synapse changes
-  because the neurons on either side of it fired in a particular order, scaled by a global
-  reward/surprise signal. Credit assignment is local in space and resolved over time through
-  eligibility traces, not by differentiating a loss.
-- **Online by default, frozen when requested.** `Runtime.step()` observes, thinks, acts, and
-  updates local state while learning is enabled. `Trainer.evaluate()` instead runs an isolated
-  copy with persistent updates disabled and verifies that its learning-state hash is unchanged.
-- **Memory is a first-class structure, not a context window.** Associative memory (a
-  sparse-distributed store) and episodic memory (a replay buffer that consolidates during
-  quiet periods) persist across episodes by design. The runtime deliberately does *not* reset
-  them at episode boundaries.
-- **Safety is inside the loop.** A `SafetyKernel` runs alongside action selection and can veto
-  a proposed action before it reaches the environment, using both hard constraints and
-  inhibitions learned from past negative outcomes.
-
-The tradeoff is honest: this is sample-hungry online learning on small networks, not a way to
-top a benchmark leaderboard. It is intended for experiments where behavior over time matters
-more than a single converged number; the current release is not production-validated.
+Release `0.1.0` is research-grade. The included benchmark scripts produce seeded results on the
+machine that runs them; production validation remains outstanding.
 
 ## Core abstractions
 
@@ -65,7 +51,7 @@ The framework is built from a small set of pieces. Conceptually:
 | **Modulator** | The global reward/surprise/arousal/inhibition signal, the "third factor" | `Neuromodulators` (`crates/engram-core/src/learning_rule.rs`) |
 | **Experience stream** | The sequence of observations and rewards driving the brain | environments in `python/engram/environments/` |
 | **Observer** | A snapshot of the brain's internal state for visualization | `RuntimeSnapshot` (`crates/engram-core/src/types.rs`), streamed by `engram-server` |
-| **Safety envelope** | The gate that vetoes dangerous actions | `SafetyKernel` (`crates/engram-modules/src/safety_kernel.rs`) |
+| **Action veto** | Checks proposals against hard constraints and learned inhibitions | `SafetyKernel` (`crates/engram-modules/src/safety_kernel.rs`) |
 
 In the current release the high-level Python API is the `Runtime` constructor, which assembles
 the six default regions and four learning pathways for you:
@@ -92,8 +78,8 @@ dw_ij = eta * e_ij * M(t)
 A pre-then-post spike pair leaves a positive trace; post-then-pre leaves a negative one. The
 trace lingers (tau_e is ~1 second by default) so a reward arriving later can still strengthen
 the connections that led to it. When `M(t)` is near zero, nothing moves; when reward beats the
-running baseline, eligible connections strengthen. That is the whole credit-assignment story,
-and it runs per-pathway with no global graph.
+running baseline, eligible connections strengthen. Each pathway applies this update independently
+using its own state.
 
 Four neuromodulators shape `M(t)`, loosely after their biological analogs:
 
@@ -137,7 +123,7 @@ brain = Runtime(input_dims=8, num_actions=4)
 obs = env.reset()
 done = False
 while not done:
-    action = brain.step(obs)            # encode -> think -> select -> safety-gate
+    action = brain.step(obs)            # encode -> update modules -> select -> veto check
     obs, reward, done, info = env.step(action)
     brain.reward(reward)                # one incremental feedback event
 brain.end_episode()                     # flushes terminal feedback; keeps learned memory
@@ -171,8 +157,8 @@ prediction error, memory formation, and safety vetoes in real time.
 ## Architecture
 
 ```
-engram-core       Pure computation. LIF neurons, CSR synapses, learning rules, spike buffers.
-                  No platform dependencies. Compiles to native and to WebAssembly.
+engram-core       Platform-independent computation: LIF neurons, CSR synapses, learning rules,
+                  and spike buffers. Compiles to native and to WebAssembly.
 engram-modules    The six brain regions, each implementing the BrainModule trait:
                   SensoryEncoder, AssociativeMemory, PredictiveError, EpisodicMemory,
                   ActionSelector, SafetyKernel.
@@ -203,8 +189,7 @@ connected by four learning pathways.
 
 ## Benchmarks
 
-The repository ships a runnable benchmark suite rather than a table of numbers to take on
-faith. Run it yourself:
+The repository ships two runnable benchmark scripts. Run the native-runtime suite with:
 
 ```bash
 python benchmarks/benchmark.py
@@ -221,9 +206,10 @@ target what online local learning is supposed to be good at:
 
 `benchmarks/proof.py` runs a separate seeded comparison of a surrogate-gradient spiking DQN
 against Q-learning and random on small mazes. Its second phase fine-tunes the output layer with
-SGD and backpropagation on an unseen layout; it is not an update-free recall test or a local
-plasticity result. Both scripts report fixed-seed measurements so runs can be compared on
-your own hardware; they are deliberately not pre-baked into this README.
+SGD and backpropagation on an unseen layout. That phase measures gradient-based fine-tuning,
+outside the native runtime's update-free recall and local-plasticity scope. Both scripts report
+fixed-seed measurements for comparison on the machine that runs them; this README omits stored
+results.
 
 ## Status
 
@@ -231,7 +217,7 @@ This is `0.1.0`, research-grade and early. The native Rust workspace
 (`engram-core`, `engram-modules`, `engram-runtime`, `engram-server`, `engram-python`)
 type-checks clean with `cargo check --workspace`. The core has unit tests for neuron dynamics,
 STDP eligibility accumulation, and reward-driven weight change. The composable `Brain` builder,
-YAML brain configs, and hardware backends (Loihi, Akida) are roadmap items, not shipped.
+YAML brain configs, and hardware backends (Loihi, Akida) remain roadmap items.
 
 ## Contributing
 
